@@ -52,7 +52,7 @@ modules:
 
         pnpm install --frozen-lockfile --registry "${NPM_CONFIG_REGISTRY}"
  
-        pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64:dir
+        pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
         APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
         mkdir -p /app/main

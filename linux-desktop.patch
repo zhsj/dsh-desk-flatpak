@@ -1,5 +1,5 @@
 diff --git a/.gitignore b/.gitignore
-index 86e330fc0c..41d3427cc4 100644
+index 86e330fc0c..f872a4c72d 100644
 --- a/.gitignore
 +++ b/.gitignore
 @@ -2,6 +2,7 @@ CLAUDE.local.md
@@ -10,24 +10,6 @@ index 86e330fc0c..41d3427cc4 100644
  apps/desktop/*.p12
  node_modules/
  lib/
-@@ -46,3 +47,4 @@ worktrees/
- .agents/worktrees/
- .typert-*/
- native/system/test/bin/
-+apps/desktop/.desktop-build/
-diff --git a/apps/desktop/package.json b/apps/desktop/package.json
-index 3eaf57f56a..238b8af58b 100644
---- a/apps/desktop/package.json
-+++ b/apps/desktop/package.json
-@@ -33,6 +33,8 @@
-     "package:win:x64": "tsx scripts/package-target.ts win-x64",
-     "package:win:x64:unsigned": "tsx scripts/package-target.ts win-x64 --unsigned",
-     "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",
-+    "package:linux:x64": "tsx scripts/package-target.ts linux-x64",
-+    "package:linux:x64:dir": "tsx scripts/package-target.ts linux-x64 --dir",
-     "upload:mac:arm64": "tsx scripts/upload-target.ts mac-arm64",
-     "upload:mac:x64": "tsx scripts/upload-target.ts mac-x64",
-     "upload:win:x64": "tsx scripts/upload-target.ts win-x64",
 diff --git a/apps/desktop/scripts/desktop-build-paths.d.mts b/apps/desktop/scripts/desktop-build-paths.d.mts
 index 9a8e408ed1..bade6b6332 100644
 --- a/apps/desktop/scripts/desktop-build-paths.d.mts
@@ -125,34 +107,6 @@ index 4f33e804c3..d44bf0f39b 100644
      arch: /** @type {'arm64' | 'x64'} */ (target === 'mac-arm64' ? 'arm64' : 'x64'),
    }
  }
-diff --git a/apps/desktop/scripts/desktop-build-version-discovery.ts b/apps/desktop/scripts/desktop-build-version-discovery.ts
-index 6bb7a1b045..80b1b2b95c 100644
---- a/apps/desktop/scripts/desktop-build-version-discovery.ts
-+++ b/apps/desktop/scripts/desktop-build-version-discovery.ts
-@@ -31,7 +31,10 @@ const LISTING_DEADLINE_MS = 8_000
- const LISTING_PAGE_SIZE = 1000
- 
- /** Artifact name electron-builder writes for one build, on either platform; unsigned Windows builds add a suffix. */
--const ARTIFACT = /(?:^|\/)deepseek-harness-(?<version>.+)-(?:mac|win)-(?:arm64|x64)(?:-unsigned)?\.(?:exe|dmg|zip)$/u
-+const ARTIFACT = /(?:^|\/)deepseek-harness-(?<version>.+)-(?:mac|win|linux)-(?:arm64|x64)(?:-unsigned)?\.(?:exe|dmg|zip|AppImage)$/u
-+
-+/** Targets whose builds are numbered against a shared upload bucket. */
-+const UPLOAD_TARGETS = new Set<DesktopPackageTargetName>(['mac-arm64', 'mac-x64', 'win-x64'])
- 
- /** Inputs that decide which versions are already taken. */
- export interface DesktopBuildVersionSuggestionOptions {
-@@ -87,9 +90,9 @@ async function localVersions(artifactsRoot: string): Promise<string[]> {
-  * @returns Versions parsed from object names, or undefined when the bucket cannot be listed completely in time.
-  */
- async function remoteVersions(options: DesktopBuildVersionSuggestionOptions): Promise<string[] | undefined> {
-+  if (!UPLOAD_TARGETS.has(options.target)) return undefined
-   const platform = options.target === 'win-x64' ? 'win32' as const : 'darwin' as const
--  const arch = options.target === 'mac-arm64' ? 'arm64' : 'x64'
--  // An unconfigured destination has nothing to be unique against; an invalid one must not be mistaken for it.
-+  const arch = options.target === 'mac-arm64' ? 'arm64' : 'x64'  // An unconfigured destination has nothing to be unique against; an invalid one must not be mistaken for it.
-   if (options.environment[DESKTOP_AUTO_UPDATE_ENV] === undefined
-     && options.environment.DOWNLOAD_TEST_ORIGIN === undefined) return undefined
-   const update = resolveDesktopUploadConfig(options.environment, platform, arch)
 diff --git a/apps/desktop/scripts/desktop-package-environment.d.mts b/apps/desktop/scripts/desktop-package-environment.d.mts
 index b0d7bc2dbe..eb1b938891 100644
 --- a/apps/desktop/scripts/desktop-package-environment.d.mts
@@ -662,25 +616,8 @@ index 62f4fcbbb2..806ce260d8 100644
    if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: buildPaths.artifacts })
  }
  
-diff --git a/apps/desktop/scripts/prepare-cli.ts b/apps/desktop/scripts/prepare-cli.ts
-index d2b9e14200..3be8c3d80a 100644
---- a/apps/desktop/scripts/prepare-cli.ts
-+++ b/apps/desktop/scripts/prepare-cli.ts
-@@ -8,10 +8,10 @@ import { join } from 'node:path'
-  * @param destination - Physical runtime/cli directory prepared for the application.
-  * @param platform - Target Desktop operating system.
-  */
--export function prepareDesktopCli(destination: string, platform: 'darwin' | 'win32'): void {
-+export function prepareDesktopCli(destination: string, platform: 'darwin' | 'win32' | 'linux'): void {
-   const name = platform === 'win32' ? 'dsh.cmd' : 'dsh'
-   const command = join(destination, 'bin', name)
-   mkdirSync(join(destination, 'bin'), { recursive: true })
-   copyFileSync(join(import.meta.dirname, '..', 'cli', name), command)
--  if (platform === 'darwin') chmodSync(command, 0o755)
-+  if (platform === 'darwin' || platform === 'linux') chmodSync(command, 0o755)
- }
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index 442e01757e..f34c638c25 100644
+index 442e01757e..dd96ef7efe 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
 @@ -30,6 +30,7 @@ import {
@@ -703,17 +640,7 @@ index 442e01757e..f34c638c25 100644
  const PNPM = join(RUNTIME_ROOT, 'pnpm', 'bin', 'pnpm.mjs')
  
  function manifestVersion(path: string, subject: string): string {
-@@ -129,8 +133,7 @@ async function main(): Promise<void> {
-     )
-     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile']))
-     const packageSet = readDesktopCorePackageSet(BUILD_ROOT, release.version)
--    const targetName = resolveDesktopBuildTarget()
--    const target = { platform: process.platform, arch: desktopTargetPlatform(targetName).arch }
-+    const target = desktopTargetPlatform(resolveDesktopBuildTarget())
-     const modules = join(BUILD_ROOT, 'node_modules')
-     const officeManifest = JSON.parse(readFileSync(join(modules, '@deepseek-ai/libreoffice-kit/package.json'), 'utf8'))
-     const officeEngine = selectOfficeEngine(officeManifest, target)
-@@ -145,6 +148,15 @@ async function main(): Promise<void> {
+@@ -145,6 +149,15 @@ async function main(): Promise<void> {
        name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
        dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
      }, undefined, 2)}\n`)
@@ -730,7 +657,7 @@ index 442e01757e..f34c638c25 100644
        if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
          throw new Error(`desktop runtime: missing private Host file ${file}`)
 diff --git a/apps/desktop/scripts/prepare-runtime.ts b/apps/desktop/scripts/prepare-runtime.ts
-index 1b88f091bc..0a76937a07 100644
+index 1b88f091bc..df3175c5db 100644
 --- a/apps/desktop/scripts/prepare-runtime.ts
 +++ b/apps/desktop/scripts/prepare-runtime.ts
 @@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
@@ -762,6 +689,21 @@ index 1b88f091bc..0a76937a07 100644
    const nodeVersion = execFileSync(executable, ['-p', 'process.versions.node'], {
      encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
    }).trim()
+@@ -55,8 +57,12 @@ async function main(): Promise<void> {
+     node: nodeVersion,
+     pnpm: pnpmVersion,
+   }, undefined, 2)}\n`)
+-  await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli',
+-    async () => prepareDesktopCli(join(RUNTIME_ROOT, 'cli'), platform))
++  // Installing the public `dsh` command is a macOS and Windows feature, and the POSIX
++  // launcher this step copies addresses the macOS bundle layout, so a Linux build ships none.
++  if (platform !== 'linux') {
++    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'prepare:cli',
++      async () => prepareDesktopCli(join(RUNTIME_ROOT, 'cli'), platform))
++  }
+   if (macosMinimumVersion !== undefined) prepareCommandLink(join(RUNTIME_ROOT, 'cli'), arch, macosMinimumVersion)
+   cpSync(join(import.meta.dirname, '..', 'lib', 'command-manager-entry.js'), join(RUNTIME_ROOT, 'cli', 'command-manager.js'))
+   cpSync(join(import.meta.dirname, 'command-path.ps1'), join(RUNTIME_ROOT, 'cli', 'command-path.ps1'))
 diff --git a/apps/desktop/scripts/smoke-packaged-runtime.ts b/apps/desktop/scripts/smoke-packaged-runtime.ts
 index 106830b5ad..702361f70d 100644
 --- a/apps/desktop/scripts/smoke-packaged-runtime.ts
@@ -782,19 +724,79 @@ index 106830b5ad..702361f70d 100644
  const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
    resolveDesktopPackageTarget(target))
  if (windows && !values.unsigned) await verifyWindowsCode(application)
-diff --git a/package.json b/package.json
-index f5ce66dc9e..288dc4ce41 100644
---- a/package.json
-+++ b/package.json
-@@ -38,6 +38,8 @@
-     "package:desktop:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64",
-     "package:desktop:win:x64:unsigned": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64:unsigned",
-     "package:desktop:win:x64:dir": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64:dir",
-+    "package:desktop:linux:x64": "pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64",
-+    "package:desktop:linux:x64:dir": "pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64:dir",
-     "upload:mac:arm64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:mac:arm64",
-     "upload:mac:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:mac:x64",
-     "upload:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:win:x64",
+diff --git a/apps/desktop/tests/desktop-build-paths.spec.ts b/apps/desktop/tests/desktop-build-paths.spec.ts
+index a5e9faf296..f12c2a0df2 100644
+--- a/apps/desktop/tests/desktop-build-paths.spec.ts
++++ b/apps/desktop/tests/desktop-build-paths.spec.ts
+@@ -12,6 +12,7 @@ describe('desktop build paths', () => {
+     const arm64 = desktopTargetBuildPaths('mac-arm64')
+     const x64 = desktopTargetBuildPaths('mac-x64')
+     const windows = desktopTargetBuildPaths('win-x64')
++    const linux = desktopTargetBuildPaths('linux-x64')
+     const mutableKeys = [
+       'root',
+       'artifacts',
+@@ -27,11 +28,12 @@ describe('desktop build paths', () => {
+     ] as const
+ 
+     for (const key of mutableKeys) {
+-      expect(new Set([arm64[key], x64[key], windows[key]]).size).toBe(3)
++      expect(new Set([arm64[key], x64[key], windows[key], linux[key]]).size).toBe(4)
+     }
+     expect(arm64.artifacts).toContain(join('targets', 'mac-arm64', 'artifacts'))
+     expect(x64.dsh).toContain(join('targets', 'mac-x64', 'dsh'))
+     expect(windows.runtime).toContain(join('targets', 'win-x64', 'runtime'))
++    expect(linux.dsh).toContain(join('targets', 'linux-x64', 'dsh'))
+   })
+ 
+   it('shares only the immutable upstream download cache', () => {
+@@ -54,16 +56,18 @@ describe('desktop build paths', () => {
+     expect(desktopTargetPlatform('mac-arm64')).toEqual({ platform: 'darwin', arch: 'arm64' })
+     expect(desktopTargetPlatform('mac-x64')).toEqual({ platform: 'darwin', arch: 'x64' })
+     expect(desktopTargetPlatform('win-x64')).toEqual({ platform: 'win32', arch: 'x64' })
+-    expect(() => desktopTargetPlatform('linux-x64' as 'mac-x64')).toThrow(/unsupported target/u)
++    expect(desktopTargetPlatform('linux-x64')).toEqual({ platform: 'linux', arch: 'x64' })
++    expect(() => desktopTargetPlatform('linux-arm64' as 'mac-x64')).toThrow(/unsupported target/u)
+   })
+ 
+-  it('resolves environment overrides and rejects unsupported targets', () => {
++  it('resolves environment overrides and the host target, and rejects unsupported targets', () => {
+     expect(resolveDesktopBuildTarget({
+       DSH_DESKTOP_TARGET_PLATFORM: 'darwin',
+       DSH_DESKTOP_TARGET_ARCH: 'x64',
+     }, 'darwin', 'arm64')).toBe('mac-x64')
+     expect(resolveDesktopBuildTarget({}, 'win32', 'x64')).toBe('win-x64')
+-    expect(() => resolveDesktopBuildTarget({}, 'linux', 'x64')).toThrow(/unsupported target/u)
+-    expect(() => desktopTargetBuildPaths('linux-x64' as 'mac-x64')).toThrow(/unsupported target/u)
++    expect(resolveDesktopBuildTarget({}, 'linux', 'x64')).toBe('linux-x64')
++    expect(() => resolveDesktopBuildTarget({}, 'linux', 'arm64')).toThrow(/unsupported target/u)
++    expect(() => desktopTargetBuildPaths('linux-arm64' as 'mac-x64')).toThrow(/unsupported target/u)
+   })
+ })
+diff --git a/apps/desktop/tests/package-target.spec.ts b/apps/desktop/tests/package-target.spec.ts
+index c802f668d2..c69f250315 100644
+--- a/apps/desktop/tests/package-target.spec.ts
++++ b/apps/desktop/tests/package-target.spec.ts
+@@ -19,6 +19,9 @@ describe('desktop package target', () => {
+     expect(resolveDesktopPackageTarget('win-x64', 'win32', 'x64')).toMatchObject({
+       platform: 'win32', arch: 'x64', builderPlatform: '--win', builderArch: '--x64',
+     })
++    expect(resolveDesktopPackageTarget('linux-x64', 'linux', 'x64')).toMatchObject({
++      platform: 'linux', arch: 'x64', builderPlatform: '--linux', builderArch: '--x64',
++    })
+   })
+ 
+   it('allows an Apple Silicon host to build the Intel target through Rosetta', () => {
+@@ -26,7 +29,8 @@ describe('desktop package target', () => {
+   })
+ 
+   it('rejects unsupported targets and hosts before building', () => {
+-    expect(() => resolveDesktopPackageTarget('linux-x64', 'linux', 'x64')).toThrow(/unsupported target/u)
++    expect(() => resolveDesktopPackageTarget('linux-arm64', 'linux', 'arm64')).toThrow(/unsupported target/u)
++    expect(() => resolveDesktopPackageTarget('linux-x64', 'darwin', 'x64')).toThrow(/Linux build host/u)
+     expect(() => resolveDesktopPackageTarget('win-x64', 'darwin', 'arm64')).toThrow(/Windows x64/u)
+     expect(() => resolveDesktopPackageTarget('mac-arm64', 'darwin', 'x64')).toThrow(/Apple Silicon/u)
+     expect(() => resolveDesktopPackageTarget('mac-arm64', 'linux', 'arm64')).toThrow(/macOS/u)
 diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
 index 45028746ff..dd71524623 100644
 --- a/packages/sandbox/sandbox-local/src/index.ts
@@ -815,22 +817,18 @@ index 45028746ff..dd71524623 100644
  
    /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
 diff --git a/scripts/primary-runtime/prepare.ts b/scripts/primary-runtime/prepare.ts
-index a156a7564a..cbd1d15aad 100644
+index a156a7564a..7aeaa91f26 100644
 --- a/scripts/primary-runtime/prepare.ts
 +++ b/scripts/primary-runtime/prepare.ts
-@@ -22,15 +22,27 @@ import lock from './lock.json' with { type: 'json' }
-  */
+@@ -23,14 +23,25 @@ import lock from './lock.json' with { type: 'json' }
  export async function downloadPrimaryRuntimeAsset(url: string, sha256: string, cache: string): Promise<string> {
    const destination = join(cache, sha256)
--  let bytes: Buffer
-+  let bytes: Buffer | undefined
+   let bytes: Buffer
++  let cacheHit = true
    try { bytes = readFileSync(destination) } catch (error) {
      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 -    const response = await fetch(url)
-+  }
-+  if (bytes) {
-+    // Cache hit, skip download
-+  } else {
++    cacheHit = false
 +    const proxy = process.env.https_proxy || process.env.HTTP_PROXY || process.env.DSH_DESKTOP_DOWNLOAD_PROXY
 +    let doFetch: typeof globalThis.fetch = globalThis.fetch
 +    if (proxy?.trim()) {
@@ -842,10 +840,11 @@ index a156a7564a..cbd1d15aad 100644
 +    const response = await doFetch(url)
      if (!response.ok) throw new Error(`primary runtime download: ${String(response.status)} ${url}`)
      bytes = Buffer.from(await response.arrayBuffer())
-+    writeFileSync(destination, bytes)
    }
    if (createHash('sha256').update(bytes).digest('hex') !== sha256) throw new Error(`primary runtime download: checksum mismatch for ${url}`)
 -  writeFileSync(destination, bytes)
++  // A cache hit already holds verified bytes; only a download that just passed the digest check is written back.
++  if (!cacheHit) writeFileSync(destination, bytes)
    return destination
  }
  

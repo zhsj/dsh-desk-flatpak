@@ -161,10 +161,10 @@ build-options:
 1. `npm install pnpm@11.7.0`
 2. `cd deepseek-harness`
 3. `pnpm install --registry "${NPM_CONFIG_REGISTRY}"`
-4. `pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64:dir`
+4. `pnpm --filter @deepseek-ai/dsh-desktop run package:dir`
 5. 复制 `linux-unpacked` 到 `/app/main/`
 
-`package:linux:x64:dir` 内部会执行 `prepare:runtime` 和 `prepare:primary-runtime` 脚本。
+`package:dir` 不带目标参数，按构建主机解析出 `linux-x64`（补丁已注册该目标），内部会执行 `prepare:runtime` 和 `prepare:primary-runtime` 脚本。
 
 ## Commit 规范
 
