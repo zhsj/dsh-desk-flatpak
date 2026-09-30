@@ -1,4 +1,5 @@
 deepseek-harness/
+deepseek-harness-desktop/
 
 # Flatpak build outputs (local builds and GitHub Actions)
 /build-dir/

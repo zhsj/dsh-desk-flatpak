@@ -15,6 +15,7 @@ finish-args:
   - --device=dri
   - --socket=pulseaudio
   - --share=network
+  - --env=GIT_EXEC_PATH=/app/libexec/git-core
   - --env=DSH_DESKTOP_APP_ID=com.deepseek.harness
   - --env=DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com
   - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
@@ -97,3 +98,10 @@ modules:
         path: com.deepseek.harness.desktop
       - type: file
         path: com.deepseek.harness.metainfo.xml
+
+  - name: git
+    buildsystem: simple
+    build-commands:
+      - mkdir -p ${FLATPAK_DEST}/libexec
+      - cp -a /usr/libexec/git-core ${FLATPAK_DEST}/libexec/git-core
+      - ln -s ../libexec/git-core/git ${FLATPAK_DEST}/bin/git
