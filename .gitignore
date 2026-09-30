@@ -1,0 +1,9 @@
+deepseek-harness/
+
+# Flatpak build outputs (local builds and GitHub Actions)
+/build-dir/
+/repo-dir/
+/.flatpak-builder/
+/flatpak_app/
+/repo/
+*.flatpak

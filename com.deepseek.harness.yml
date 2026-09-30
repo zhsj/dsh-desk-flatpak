@@ -1,0 +1,99 @@
+app-id: com.deepseek.harness
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node24
+base: org.electronjs.Electron2.BaseApp
+base-version: "25.08"
+command: deepseek-harness
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --device=dri
+  - --socket=pulseaudio
+  - --share=network
+  - --env=DSH_DESKTOP_APP_ID=com.deepseek.harness
+  - --env=DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com
+  - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+
+modules:
+  - name: dsh-desktop
+    buildsystem: simple
+    build-options:
+      no-debuginfo: true
+      build-args:
+        - --share=network
+      append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
+      secret-env:
+        - https_proxy
+      env:
+        NO_PROXY: .npmmirror.com
+        NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
+        DSH_DESKTOP_NPM_REGISTRY: https://registry.npmmirror.com
+        ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+        DSH_DESKTOP_APP_ID: com.deepseek.harness
+        DSH_DESKTOP_TARGET_PLATFORM: linux
+        DSH_DESKTOP_TARGET_ARCH: x64
+        ELECTRON_BUILDER_CACHE: /run/build/dsh-desktop/.electron-builder-cache
+        ELECTRON_CACHE: /run/build/dsh-desktop/.electron-cache
+    build-commands:
+      - |
+        set -eu
+
+        npm install pnpm@11.7.0
+
+        cd deepseek-harness
+
+        pnpm install --frozen-lockfile --registry "${NPM_CONFIG_REGISTRY}"
+ 
+        pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64:dir
+
+        APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
+        mkdir -p /app/main
+        cp -a "${APPDIR}/." /app/main/
+
+        cp -a "${APPDIR}/resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/node-addon-system-linux-x64/bin/landlock-run" /app/bin/landlock-run
+    sources:
+      - type: git
+        url: https://github.com/deepseek-ai/deepseek-harness.git
+        tag: dsh-v0.2.0-rc.2
+        commit: 639ed015397290b3745d163aafe02ffee4aa3f84
+        dest: deepseek-harness
+      - type: patch
+        paths:
+          - linux-desktop.patch
+        options:
+          - -d
+          - deepseek-harness
+
+  - name: desktop-integration
+    buildsystem: simple
+    build-commands:
+      - |
+        install -Dm755 "${FLATPAK_BUILDER_BUILDDIR}/deepseek-harness.sh" \
+          /app/bin/deepseek-harness
+
+        install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/com.deepseek.harness.desktop" \
+          /app/share/applications/com.deepseek.harness.desktop
+
+        for size in 512 256 128 64 48; do
+          mkdir -p "/app/share/icons/hicolor/${size}x${size}/apps"
+          ffmpeg -y -loglevel error -i /app/main/resources/icon.png \
+            -vf "scale=${size}:${size}" \
+            "/app/share/icons/hicolor/${size}x${size}/apps/com.deepseek.harness.png"
+        done
+
+        install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/com.deepseek.harness.metainfo.xml" \
+          /app/share/metainfo/com.deepseek.harness.metainfo.xml
+    sources:
+      - type: file
+        path: deepseek-harness.sh
+      - type: file
+        path: com.deepseek.harness.desktop
+      - type: file
+        path: com.deepseek.harness.metainfo.xml

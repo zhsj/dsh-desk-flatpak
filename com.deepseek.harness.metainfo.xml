@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.deepseek.harness</id>
+  <name>DeepSeek Harness</name>
+  <summary>DeepSeek Harness desktop application</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>DeepSeek Harness desktop application with Electron shell and bundled dsh runtime.</p>
+  </description>
+  <categories>
+    <category>Development</category>
+  </categories>
+  <url type="homepage">https://github.com/deepseek-ai/deepseek-harness</url>
+  <launchable type="desktop-id">com.deepseek.harness.desktop</launchable>
+</component>
