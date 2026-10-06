@@ -9,9 +9,6 @@ base-version: "25.08"
 command: deepseek-harness
 separate-locales: false
 
-build-options:
-  no-debuginfo: true
-
 finish-args:
   - --share=ipc
   - --socket=wayland
@@ -28,6 +25,7 @@ modules:
   - name: dsh-desktop
     buildsystem: simple
     build-options:
+      no-debuginfo: true
       build-args:
         - --share=network
       append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
