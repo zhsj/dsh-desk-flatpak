@@ -30,7 +30,7 @@ jobs:
         with:
           manifest-path: com.deepseek.harness.yml
           arch: x86_64
-          branch: stable
+          branch: test
           repo-path: _repo
           run-linter: false
           upload-bundle: true
