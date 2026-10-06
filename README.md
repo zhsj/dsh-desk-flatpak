@@ -5,6 +5,15 @@ desktop app, with Linux/Flatpak patches applied.
 
 App ID: `com.deepseek.harness`
 
+## Install
+
+```bash
+flatpak remote-add --if-not-exists --user --no-gpg-verify \
+  dsh oci+https://zhsj.github.io/dsh-desk-flatpak
+flatpak install --user dsh com.deepseek.harness
+flatpak run com.deepseek.harness
+```
+
 ## Build
 
 ```bash
@@ -21,16 +30,4 @@ docker run \
     --force-clean \
     --install-deps-from=flathub \
     build-dir com.deepseek.harness.yml
-```
-
-## Install
-
-```bash
-flatpak install --user ./repo-dir com.deepseek.harness --reinstall
-```
-
-## Run
-
-```bash
-flatpak run com.deepseek.harness
 ```
