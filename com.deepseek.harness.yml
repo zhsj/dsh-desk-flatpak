@@ -11,10 +11,10 @@ separate-locales: false
 
 finish-args:
   - --share=ipc
-  - --socket=wayland
-  - --device=dri
-  - --socket=pulseaudio
   - --share=network
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
   - --env=GIT_EXEC_PATH=/app/libexec/git-core
   - --env=DSH_DESKTOP_APP_ID=com.deepseek.harness
   - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
@@ -30,7 +30,6 @@ modules:
         - --share=network
       append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
       env:
-        DSH_DESKTOP_APP_ID: com.deepseek.harness
         DSH_DESKTOP_TARGET_PLATFORM: linux
         DSH_DESKTOP_TARGET_ARCH: x64
         ELECTRON_BUILDER_CACHE: /run/build/dsh-desktop/.electron-builder-cache
@@ -45,6 +44,8 @@ modules:
 
         pnpm install --frozen-lockfile
 
+        cp "${FLATPAK_BUILDER_BUILDDIR}/env" apps/desktop/.env.linux
+
         pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
         APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
@@ -53,6 +54,8 @@ modules:
 
         cp -a "${APPDIR}/resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/node-addon-system-linux-x64/bin/landlock-run" /app/bin/landlock-run
     sources:
+      - type: file
+        path: env
       - type: git
         url: https://github.com/deepseek-ai/deepseek-harness.git
         tag: dsh-v0.2.1-alpha.1
