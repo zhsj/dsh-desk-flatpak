@@ -17,7 +17,6 @@ finish-args:
   - --share=network
   - --env=GIT_EXEC_PATH=/app/libexec/git-core
   - --env=DSH_DESKTOP_APP_ID=com.deepseek.harness
-  - --env=DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com
   - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
@@ -30,13 +29,7 @@ modules:
       build-args:
         - --share=network
       append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
-      secret-env:
-        - https_proxy
       env:
-        NO_PROXY: .npmmirror.com
-        NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
-        DSH_DESKTOP_NPM_REGISTRY: https://registry.npmmirror.com
-        ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
         DSH_DESKTOP_APP_ID: com.deepseek.harness
         DSH_DESKTOP_TARGET_PLATFORM: linux
         DSH_DESKTOP_TARGET_ARCH: x64
@@ -50,8 +43,8 @@ modules:
 
         cd deepseek-harness
 
-        pnpm install --frozen-lockfile --registry "${NPM_CONFIG_REGISTRY}"
- 
+        pnpm install --frozen-lockfile
+
         pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
         APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked

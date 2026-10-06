@@ -18,7 +18,6 @@ flatpak run com.deepseek.harness
 
 ```bash
 docker run \
-  -e https_proxy=http://172.17.0.1:1081 \
   --rm -it \
   -v "$(pwd)":/workspace \
   -w /workspace \
