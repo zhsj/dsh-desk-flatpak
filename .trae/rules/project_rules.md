@@ -9,7 +9,7 @@ Flatpak 打包 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harnes
 | 文件 | 用途 |
 |------|------|
 | `com.deepseek.harness.yml` | Flatpak manifest 主配置 |
-| `linux-desktop.patch` | 适配 Linux/Flatpak 平台的补丁 |
+| `linux-desktop.patch` | 适配 Linux/Flatpak 平台的合并补丁（git format-patch --stdout 生成） |
 | `deepseek-harness.sh` | zypak wrapper 启动脚本 |
 | `com.deepseek.harness.desktop` | 桌面入口文件 |
 | `com.deepseek.harness.metainfo.xml` | AppStream 元数据 |
@@ -51,10 +51,10 @@ flatpak run com.deepseek.harness
 
 补丁基于本地 `deepseek-harness/` 仓库的 `linux-flatpak` 分支调试并生成：
 
-1. 在 `deepseek-harness/` 目录创建 `linux-flatpak` 分支
-2. 在该分支上应用所有 Linux/Flatpak 适配修改
-3. 与原始分支 diff 生成 patch 文件：`git diff <base-branch>..linux-flatpak > ../linux-desktop.patch`
-4. Patch 在 manifest 中通过 `sources.patch` 应用，目标目录为 `deepseek-harness`
+1. 在 `deepseek-harness/` 目录创建/切换到 `linux-flatpak` 分支
+2. 在该分支上应用所有 Linux/Flatpak 适配修改（每个独立功能一个 commit）
+3. 使用 `git format-patch --stdout` 将相对于 `master` 的修改合并为一个补丁文件：`git format-patch --stdout master..linux-flatpak > ../linux-desktop.patch`
+4. 补丁在 manifest 的 `sources.patch.paths` 中引用，`-d deepseek-harness` 指定目标目录
 
 ## 依赖源
 

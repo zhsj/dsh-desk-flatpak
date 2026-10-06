@@ -1,3 +1,270 @@
+From b6d45d601d7f4468470712b1b99c90d82fa8b4c3 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Thu, 1 Oct 2026 01:48:15 +0800
+Subject: [PATCH 1/4] fix(desktop): patch the LibreOfficeKit probe for the
+ Linux runtime
+
+Electron's ASAR filesystem returns `null` rather than `undefined` for a
+missing lstatSync entry, so the LibreOfficeKit native-engine probe
+reports every name as installed and Linux can never fall back to the
+bundled WASM engine: conversion fails with "installed package is
+incomplete" instead.
+
+Assisted-by: Trae IDE (DeepSeek-V4-Pro)
+---
+ .../scripts/linux-runtime-adjustments.ts      | 39 +++++++++++++++++++
+ apps/desktop/scripts/prepare-dsh.ts           |  8 ++++
+ 2 files changed, 47 insertions(+)
+ create mode 100644 apps/desktop/scripts/linux-runtime-adjustments.ts
+
+diff --git a/apps/desktop/scripts/linux-runtime-adjustments.ts b/apps/desktop/scripts/linux-runtime-adjustments.ts
+new file mode 100644
+index 0000000000..9bc75195ed
+--- /dev/null
++++ b/apps/desktop/scripts/linux-runtime-adjustments.ts
+@@ -0,0 +1,39 @@
++/**
++ * Post-install adjustments the Linux release needs because neither Electron nor the
++ * published dependency set has ever been qualified against it.
++ *
++ * The Windows and macOS releases never needed this adjustment, so they keep the
++ * registry packages exactly as installed.
++ *
++ * LibreOfficeKit decides whether an optional native engine package is installed by
++ * probing `lstatSync(path, { throwIfNoEntry: false })`. Electron's ASAR filesystem
++ * returns `null` rather than `undefined` for a missing entry, so the probe reports
++ * every name as installed and Linux can never fall back to the bundled WASM engine:
++ * conversion fails with "installed package is incomplete" instead.
++ */
++
++import { readFileSync, writeFileSync } from 'node:fs'
++import { join } from 'node:path'
++
++/** Engine that resolves the optional native LibreOfficeKit package. */
++const OFFICE_ENGINE_PACKAGE = '@deepseek-ai/libreoffice-kit'
++const OFFICE_ENGINE_ENTRY = 'lib/index.js'
++
++/** ASAR-insensitive existence probe that replaces the published one. */
++const OFFICE_ENGINE_EXISTENCE_CHECK = 'lstatSync(join(directory, name), { throwIfNoEntry: false }) !== void 0'
++const OFFICE_ENGINE_EXISTENCE_FIX = 'Boolean(lstatSync(join(directory, name), { throwIfNoEntry: false }))'
++
++/**
++ * Make the LibreOfficeKit engine probe work inside an ASAR archive.
++ * @param root - Prepared dsh tree that becomes `resources/app.asar/dsh`.
++ * @throws When the installed engine no longer contains the probe this fixes.
++ */
++export function fixLibreOfficeEngineFallback(root: string): void {
++  const path = join(root, 'node_modules', ...OFFICE_ENGINE_PACKAGE.split('/'), OFFICE_ENGINE_ENTRY)
++  const source = readFileSync(path, 'utf8')
++  const occurrences = source.split(OFFICE_ENGINE_EXISTENCE_CHECK).length - 1
++  if (occurrences !== 1) {
++    throw new Error(`desktop runtime: ${OFFICE_ENGINE_PACKAGE} no longer contains the installed-package probe this build patches`)
++  }
++  writeFileSync(path, source.replace(OFFICE_ENGINE_EXISTENCE_CHECK, OFFICE_ENGINE_EXISTENCE_FIX))
++}
+diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
+index 442e01757e..6498112231 100644
+--- a/apps/desktop/scripts/prepare-dsh.ts
++++ b/apps/desktop/scripts/prepare-dsh.ts
+@@ -30,6 +30,7 @@ import {
+   signMacOSRuntime,
+ } from './macos-runtime.ts'
+ import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
++import { fixLibreOfficeEngineFallback } from './linux-runtime-adjustments.ts'
+ import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
+ import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
+ 
+@@ -145,6 +146,13 @@ async function main(): Promise<void> {
+       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
+       dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
+     }, undefined, 2)}\n`)
++    // Electron's ASAR filesystem defeats the LibreOfficeKit native-engine probe, which
++    // must fail here for Linux to fall back to the bundled WASM engine.
++    if (target.platform === 'linux') {
++      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:linux-adjustments', async () => {
++        fixLibreOfficeEngineFallback(DSH_OUTPUT_ROOT)
++      })
++    }
+     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
+       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
+         throw new Error(`desktop runtime: missing private Host file ${file}`)
+-- 
+2.53.0
+
+
+From 7fe634de668756885d857ef31f12926ea5e54e29 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Thu, 1 Oct 2026 01:48:20 +0800
+Subject: [PATCH 2/4] fix(desktop): make the landlock sandbox work from the
+ packaged app
+
+The ASAR archive stays read-only and Electron resolves ASAR paths only for
+execFile, not for the spawnSync the landlock probe uses, so the
+sandbox-local provider found no usable backend inside the Flatpak bundle:
+
+- unpack **/bin/landlock-run from the archive so the launcher exists on
+  the filesystem at all.
+- honor DSH_LANDLOCK_LAUNCHER ahead of the ASAR-path resolution, so a
+  deployment that copies the launcher outside the archive can point the
+  provider at it.
+
+Assisted-by: Claude-Code:DeepSeek-V4-Pro
+---
+ apps/desktop/scripts/electron-builder-config.mjs | 2 +-
+ packages/sandbox/sandbox-local/src/index.ts      | 8 +++++++-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index 1fb787803c..b9b58e3fd8 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -69,7 +69,7 @@ export function createElectronBuilderConfig(
+   let primaryRuntimeDestination
+   let dshDestination
+   let windowsCode = []
+-  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
++  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/bin/landlock-run', '**/@vscode/ripgrep-*/bin/rg',
+     `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`]
+   const windowsSigner = packagesWindows && !unsigned
+     ? createWindowsTokenSigner({
+diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
+index 45028746ff..dd71524623 100644
+--- a/packages/sandbox/sandbox-local/src/index.ts
++++ b/packages/sandbox/sandbox-local/src/index.ts
+@@ -552,7 +552,13 @@ export class LocalSandboxProvider extends SandboxProvider {
+ 
+   /** The Landlock launcher to probe and exec (test hook over the resolved one). */
+   private landlockLauncher(): string {
+-    return this.internals.landlockLauncher ?? landlockLauncherPath()
++    if (this.internals.landlockLauncher !== undefined) return this.internals.landlockLauncher
++    // Electron's spawn/execFile handles ASAR paths only for execFile, not
++    // for spawnSync (used by the probe below).  Flatpak deployments ship
++    // a copy of the launcher outside the read-only ASAR archive so that
++    // the probe and confine() can spawn it on a real filesystem path.
++    if (process.env.DSH_LANDLOCK_LAUNCHER !== undefined) return process.env.DSH_LANDLOCK_LAUNCHER
++    return landlockLauncherPath()
+   }
+ 
+   /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
+-- 
+2.53.0
+
+
+From bc07fd6f9720d900c76b45bde3eb410ac09f721d Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Wed, 7 Oct 2026 05:43:36 +0800
+Subject: [PATCH 3/4] feat(desktop): skip auto-update feed and mandatory policy
+ for linux-x64
+
+Linux ships unsigned with no auto-update feed, so:
+- Skip update feed configuration in electron-builder
+- Skip mandatory policy resolution
+- Skip release record writing for the linux-x64 target
+
+Assisted-by: Trae:DeepSeek-V4-Pro
+---
+ apps/desktop/scripts/desktop-package-environment.mjs |  2 ++
+ apps/desktop/scripts/electron-builder-config.mjs     |  6 ++++--
+ apps/desktop/scripts/package-target.ts               | 11 ++++++++---
+ 3 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
+index 3addf3ff65..b14910611a 100644
+--- a/apps/desktop/scripts/desktop-package-environment.mjs
++++ b/apps/desktop/scripts/desktop-package-environment.mjs
+@@ -79,6 +79,8 @@ function requireReadableFile(environment, name) {
+ export function validateDesktopPackageEnvironment(environment, target, options = {}) {
+   resolveDesktopAppId(environment)
+   resolveNpmRegistry(environment)
++  // Linux is built unsigned and publishes no update feed or mandatory policy service.
++  if (target.platform === 'linux') return
+   resolveDesktopPolicyEnvironment(environment)
+   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
+   else resolveWindowsPackageSettings(environment)
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index b9b58e3fd8..b3d0d2866e 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -51,10 +51,10 @@ export function createElectronBuilderConfig(
+   preparedRuntimeVersion = undefined,
+ ) {
+   const appId = resolveDesktopAppId(env)
+-  const policy = resolveDesktopPolicyEnvironment(env)
+   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
+   const resolvedPlatform = targetPlatform ?? hostPlatform
+   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
++  const policy = resolvedPlatform === 'linux' ? undefined : resolveDesktopPolicyEnvironment(env)
+   if (env.DSH_DESKTOP_UNSIGNED !== undefined && !['0', '1'].includes(env.DSH_DESKTOP_UNSIGNED)) {
+     throw new Error('desktop package: DSH_DESKTOP_UNSIGNED must be 0 or 1')
+   }
+@@ -90,7 +90,9 @@ export function createElectronBuilderConfig(
+   if (windowsSigner !== undefined) {
+     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
+   }
+-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
++  const update = unsigned || resolvedPlatform === 'linux'
++    ? undefined
++    : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
+   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
+   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
+diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
+index 62f4fcbbb2..6d8c1288fa 100644
+--- a/apps/desktop/scripts/package-target.ts
++++ b/apps/desktop/scripts/package-target.ts
+@@ -402,8 +402,11 @@ export async function packageTarget(
+   const mac = target.platform === 'darwin' ? resolveMacOSPackageSettings(environment) : undefined
+   const packArguments = mac === undefined ? [] : ['--concurrency', String(mac.packConcurrency)]
+   const buildPaths = desktopTargetBuildPaths(target.name)
+-  const releaseRecordPath = join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
+-  if (!invocation.prepareOnly && !invocation.unsigned) {
++  // Linux has no published update feed, so it writes no upload record.
++  const releaseRecordPath = target.platform === 'linux'
++    ? undefined
++    : join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
++  if (releaseRecordPath !== undefined && !invocation.prepareOnly && !invocation.unsigned) {
+     rmSync(releaseRecordPath, { force: true })
+     rmSync(`${releaseRecordPath}.tmp`, { force: true })
+   }
+@@ -496,7 +499,9 @@ export async function packageTarget(
+     await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
+     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts', ...(invocation.unsigned ? ['--unsigned'] : [])], targetEnv)
+   }
+-  if (!invocation.directory && !invocation.unsigned) writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
++  if (releaseRecordPath !== undefined && !invocation.directory && !invocation.unsigned) {
++    writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
++  }
+   if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: buildPaths.artifacts })
+ }
+ 
+-- 
+2.53.0
+
+
+From a06b138d82690597f381c1efc1e5db44e6d4ef69 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Wed, 7 Oct 2026 04:17:33 +0800
+Subject: [PATCH 4/4] feat(desktop): add the linux-x64 packaging target
+
+Assisted-by: Trae:DeepSeek-V4-Pro
+---
+ .gitignore                                    |  1 +
+ .../desktop-auto-update-environment.d.mts     |  2 +-
+ .../desktop/scripts/desktop-build-paths.d.mts |  2 +-
+ apps/desktop/scripts/desktop-build-paths.mjs  | 14 ++++++-------
+ .../scripts/desktop-package-environment.d.mts |  4 ++--
+ .../scripts/desktop-package-environment.mjs   |  6 +++---
+ .../scripts/desktop-toolchain-preflight.ts    |  4 ++--
+ apps/desktop/scripts/desktop-upload-plan.ts   |  1 +
+ .../scripts/electron-builder-config.mjs       |  4 +++-
+ apps/desktop/scripts/package-target.ts        | 20 +++++++++++++++----
+ apps/desktop/scripts/prepare-dsh.ts           |  5 ++++-
+ apps/desktop/scripts/prepare-runtime.ts       | 16 ++++++++++-----
+ .../desktop/scripts/smoke-packaged-runtime.ts |  9 ++++++---
+ .../desktop/tests/desktop-build-paths.spec.ts | 14 ++++++++-----
+ apps/desktop/tests/package-target.spec.ts     |  6 +++++-
+ 15 files changed, 72 insertions(+), 36 deletions(-)
+
 diff --git a/.gitignore b/.gitignore
 index 86e330fc0c..f872a4c72d 100644
 --- a/.gitignore
@@ -10,43 +277,28 @@ index 86e330fc0c..f872a4c72d 100644
  apps/desktop/*.p12
  node_modules/
  lib/
+diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+index 00ebf8c5c0..38d4317d7e 100644
+--- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
++++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+@@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
+ export type DesktopAutoUpdateEnvironment = 'test' | 'production'
+ 
+ /** Directory name of one supported Desktop release target. */
+-export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
++export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /** Public updater URL and object prefixes for one release target. */
+ export interface DesktopAutoUpdateConfig {
 diff --git a/apps/desktop/scripts/desktop-build-paths.d.mts b/apps/desktop/scripts/desktop-build-paths.d.mts
-index 9a8e408ed1..bade6b6332 100644
+index 9a8e408ed1..d366e9edb5 100644
 --- a/apps/desktop/scripts/desktop-build-paths.d.mts
 +++ b/apps/desktop/scripts/desktop-build-paths.d.mts
-@@ -1,5 +1,8 @@
- import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
- 
-+/** Directory name of one supported Desktop build target. */
-+export type DesktopTargetName = DesktopAutoUpdateTarget | 'linux-x64'
-+
- /** Mutable target directories plus the shared immutable download cache. */
- export interface DesktopTargetBuildPaths {
-   readonly root: string
-@@ -27,14 +30,14 @@ export function resolveDesktopBuildTarget(
-   env?: NodeJS.ProcessEnv,
-   hostPlatform?: NodeJS.Platform,
-   hostArch?: string,
--): DesktopAutoUpdateTarget
-+): DesktopTargetName
- 
- /**
-  * Return the mutable preparation and artifact directories owned by one release target.
-  * @param target - Supported Desktop target name.
-  * @returns Target paths plus the shared immutable download cache.
-  */
--export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget): DesktopTargetBuildPaths
-+export function desktopTargetBuildPaths(target: DesktopTargetName): DesktopTargetBuildPaths
- 
- /**
-  * Return the platform and architecture of the payload one release target prepares.
-@@ -42,8 +45,8 @@ export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget): Deskto
-  * @param target - Supported Desktop target name.
+@@ -43,7 +43,7 @@ export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget): Deskto
   * @returns Platform and architecture of the prepared payload.
   */
--export function desktopTargetPlatform(target: DesktopAutoUpdateTarget): {
+ export function desktopTargetPlatform(target: DesktopAutoUpdateTarget): {
 -  readonly platform: 'darwin' | 'win32'
-+export function desktopTargetPlatform(target: DesktopTargetName): {
 +  readonly platform: 'darwin' | 'win32' | 'linux'
    readonly arch: 'arm64' | 'x64'
  }
@@ -108,17 +360,10 @@ index 4f33e804c3..d44bf0f39b 100644
    }
  }
 diff --git a/apps/desktop/scripts/desktop-package-environment.d.mts b/apps/desktop/scripts/desktop-package-environment.d.mts
-index b0d7bc2dbe..eb1b938891 100644
+index b0d7bc2dbe..c158004373 100644
 --- a/apps/desktop/scripts/desktop-package-environment.d.mts
 +++ b/apps/desktop/scripts/desktop-package-environment.d.mts
-@@ -2,13 +2,14 @@
- 
- /**
-  * Read the target's required UTF-8 dotenv file; release settings never fall back to ambient values.
-+ * Linux is unsigned and publishes no update feed, so its settings file is optional.
-  * @param platform Target platform.
-  * @param environment Parent environment, retained only for unrelated build tools.
-  * @param appRoot Desktop application directory; relative credential paths resolve here.
+@@ -8,7 +8,7 @@
   * @returns Isolated environment with file-owned release settings.
   */
  export function loadDesktopPackageEnvironment(
@@ -127,7 +372,7 @@ index b0d7bc2dbe..eb1b938891 100644
    environment?: NodeJS.ProcessEnv,
    appRoot?: string,
  ): NodeJS.ProcessEnv
-@@ -22,6 +23,6 @@ export function loadDesktopPackageEnvironment(
+@@ -22,6 +22,6 @@ export function loadDesktopPackageEnvironment(
   */
  export function validateDesktopPackageEnvironment(
    environment: NodeJS.ProcessEnv,
@@ -136,19 +381,14 @@ index b0d7bc2dbe..eb1b938891 100644
    options?: { unsigned?: boolean, prepareOnly?: boolean },
  ): void
 diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
-index 3addf3ff65..e0119f148d 100644
+index b14910611a..2980b0e240 100644
 --- a/apps/desktop/scripts/desktop-package-environment.mjs
 +++ b/apps/desktop/scripts/desktop-package-environment.mjs
-@@ -19,21 +19,25 @@ const MACOS_SETTING = /^(?:DSH_DESKTOP_MACOS_(?:SIGNING_IDENTITY|TEAM_ID|PACK_CO
- const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDATORY_UPDATE_.*|WINDOWS_.*|MACOS_.*)|APPLE_.*|(?:WIN_)?CSC_.*|DOWNLOAD_(?:TEST|PROD)_.*)$/iu
- const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGNTOOL', 'APPLE_API_KEY', 'APPLE_KEYCHAIN', 'CSC_LINK']
+@@ -21,13 +21,13 @@ const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGN
  
-+const LINUX_SETTING = /^DSH_DESKTOP_LINUX_/u
-+
  /**
   * Read the target's required UTF-8 dotenv file; release settings never fall back to ambient values.
 - * @param {'win32' | 'darwin'} platform Target platform.
-+ * Linux is unsigned and publishes no update feed, so its settings file is optional.
 + * @param {'win32' | 'darwin' | 'linux'} platform Target platform.
   * @param {NodeJS.ProcessEnv} environment Parent environment, retained only for unrelated build tools.
   * @param {string} appRoot Desktop application directory; relative credential paths resolve here.
@@ -160,36 +400,7 @@ index 3addf3ff65..e0119f148d 100644
    let contents
    try {
      contents = readFileSync(path, 'utf8')
-   }
-   catch {
--    throw new Error(`desktop package: cannot read ${path}; copy ${path}.example and fill in the local settings`)
-+    if (platform !== 'linux') throw new Error(`desktop package: cannot read ${path}; copy ${path}.example and fill in the local settings`)
-+    contents = ''
-   }
-   let settings
-   try {
-@@ -43,7 +47,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
-     // Parser diagnostics can contain credential-bearing input.
-     throw new Error(`desktop package: invalid dotenv syntax in ${path}`)
-   }
--  const platformSetting = platform === 'win32' ? WINDOWS_SETTING : MACOS_SETTING
-+  const platformSetting = platform === 'win32' ? WINDOWS_SETTING : platform === 'linux' ? LINUX_SETTING : MACOS_SETTING
-   for (const name of Object.keys(settings)) {
-     if (!SHARED_SETTING.test(name) && !platformSetting.test(name)) {
-       throw new Error(`desktop package: unsupported setting ${name} in ${path}; use the platform template`)
-@@ -54,7 +58,10 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
-     if (settings[name]?.trim()) settings[name] = resolve(dirname(path), settings[name].trim())
-   }
-   return {
--    ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
-+    ...Object.fromEntries(Object.entries(environment).filter(([name]) => {
-+      if (platform === 'linux' && /^DSH_DESKTOP_(?:APP_ID|NPM_REGISTRY)$/u.test(name)) return true
-+      return !AMBIENT_RELEASE_SETTING.test(name)
-+    })),
-     ...settings,
-   }
- }
-@@ -72,13 +79,15 @@ function requireReadableFile(environment, name) {
+@@ -72,7 +72,7 @@ function requireReadableFile(environment, name) {
  /**
   * Validate release configuration before preparation without invoking a token or Apple's services.
   * @param {NodeJS.ProcessEnv} environment File-owned release settings.
@@ -198,14 +409,6 @@ index 3addf3ff65..e0119f148d 100644
   * @param {{ unsigned?: boolean, prepareOnly?: boolean }} options Explicit packaging mode.
   * @returns {void}
   */
- export function validateDesktopPackageEnvironment(environment, target, options = {}) {
-   resolveDesktopAppId(environment)
-   resolveNpmRegistry(environment)
-+  // Linux is built unsigned and publishes no update feed or mandatory policy service.
-+  if (target.platform === 'linux') return
-   resolveDesktopPolicyEnvironment(environment)
-   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
-   else resolveWindowsPackageSettings(environment)
 diff --git a/apps/desktop/scripts/desktop-toolchain-preflight.ts b/apps/desktop/scripts/desktop-toolchain-preflight.ts
 index ff855cfd09..08c8dc1fca 100644
 --- a/apps/desktop/scripts/desktop-toolchain-preflight.ts
@@ -229,129 +432,32 @@ index ff855cfd09..08c8dc1fca 100644
  ): Promise<void> {
    const failures = await probeDesktopToolchain(platform, environment)
 diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
-index 439a4fa6e1..e3f50f3674 100644
+index 439a4fa6e1..b3dbaf21e2 100644
 --- a/apps/desktop/scripts/desktop-upload-plan.ts
 +++ b/apps/desktop/scripts/desktop-upload-plan.ts
-@@ -7,6 +7,7 @@ import { basename, join, resolve } from 'node:path'
- import { dump, load } from 'js-yaml'
- import { prerelease } from 'semver'
- import type { DesktopPackageTargetName } from './package-target.ts'
-+import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
- import {
-   desktopBuildRecordFilename,
-   desktopUpdateMetadataFilename,
-@@ -21,11 +22,20 @@ const TARGETS = {
+@@ -18,6 +18,7 @@ import { validateDesktopBuildVersion } from './desktop-build-version.mjs'
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
+ const TARGETS = {
++  'linux-x64': { platform: 'linux', arch: 'x64', os: 'linux' },
    'mac-arm64': { platform: 'darwin', arch: 'arm64', os: 'mac' },
    'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
    'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
--} as const satisfies Record<DesktopPackageTargetName, {
-+} as const satisfies Partial<Record<DesktopPackageTargetName, {
-   readonly platform: NodeJS.Platform
-   readonly arch: string
-   readonly os: string
--}>
-+}>>
-+
-+/**
-+ * Narrow a build target to the ones that publish to an update feed.
-+ * @param name - Build target selected by the upload command.
-+ * @returns Whether the target has a published update directory.
-+ */
-+function isUploadTarget(name: DesktopPackageTargetName): name is DesktopAutoUpdateTarget {
-+  return name !== 'linux-x64'
-+}
- 
- /** One local file and its final object metadata. */
- export interface DesktopUploadArtifact {
-@@ -180,10 +190,10 @@ export async function createDesktopUploadPlan(
-   targetName: DesktopPackageTargetName,
-   options: DesktopUploadPlanOptions = {},
- ): Promise<DesktopUploadPlan> {
--  const target = TARGETS[targetName]
--  if (target === undefined) {
-+  if (!isUploadTarget(targetName)) {
-     throw new Error(`desktop upload: unsupported target ${String(targetName)}`)
-   }
-+  const target = TARGETS[targetName]
-   const environment = options.environment ?? process.env
-   const repositoryRoot = options.repositoryRoot ?? REPOSITORY_ROOT
-   const appRoot = options.appRoot ?? APP_ROOT
-diff --git a/apps/desktop/scripts/development-project.ts b/apps/desktop/scripts/development-project.ts
-index d544ce6d36..5ceb275da3 100644
---- a/apps/desktop/scripts/development-project.ts
-+++ b/apps/desktop/scripts/development-project.ts
-@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
- import { createDevelopmentProjectMetadata } from '../src/project-manager.ts'
- import type { DesktopRelease } from '../src/release.ts'
- import { DESKTOP_RUNTIME_FILE, type DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
--import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
-+import type { DesktopTargetName } from './desktop-build-paths.mjs'
- import { desktopTargetPlatform } from './desktop-build-paths.mjs'
- 
- interface PackageManifest {
-@@ -38,7 +38,7 @@ export interface DevelopmentProjectOptions {
-   /** Release identity written into the disposable project metadata. */
-   readonly release: DesktopRelease
-   /** Build target whose prepared payload the disposable project runs against. */
--  readonly target: DesktopAutoUpdateTarget
-+  readonly target: DesktopTargetName
- }
- 
- function readManifest(path: string): PackageManifest {
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index 1fb787803c..a62a1f549e 100644
+index b3d0d2866e..565580a9b0 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -51,10 +51,11 @@ export function createElectronBuilderConfig(
-   preparedRuntimeVersion = undefined,
- ) {
-   const appId = resolveDesktopAppId(env)
--  const policy = resolveDesktopPolicyEnvironment(env)
-   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
-   const resolvedPlatform = targetPlatform ?? hostPlatform
-   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
-+  // Linux ships unsigned with no update feed and no mandatory policy service.
-+  const policy = resolvedPlatform === 'linux' ? undefined : resolveDesktopPolicyEnvironment(env)
-   if (env.DSH_DESKTOP_UNSIGNED !== undefined && !['0', '1'].includes(env.DSH_DESKTOP_UNSIGNED)) {
-     throw new Error('desktop package: DSH_DESKTOP_UNSIGNED must be 0 or 1')
-   }
-@@ -69,7 +70,7 @@ export function createElectronBuilderConfig(
-   let primaryRuntimeDestination
-   let dshDestination
-   let windowsCode = []
--  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
-+  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/bin/landlock-run', '**/@vscode/ripgrep-*/bin/rg',
-     `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`]
-   const windowsSigner = packagesWindows && !unsigned
-     ? createWindowsTokenSigner({
-@@ -90,7 +91,9 @@ export function createElectronBuilderConfig(
-   if (windowsSigner !== undefined) {
-     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
-   }
--  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
-+  const update = unsigned || resolvedPlatform === 'linux'
-+    ? undefined
-+    : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
-   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
-   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
-   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
-@@ -143,7 +146,8 @@ export function createElectronBuilderConfig(
+@@ -145,7 +145,7 @@ export function createElectronBuilderConfig(
      asarUnpack: unpack,
      extraResources: [
        { from: buildPaths.runtime, to: 'runtime' },
 -      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
-+      // Linux launchers and AppImage desktop entries use the original artwork.
 +      { from: fileURLToPath(new URL(`../resources/${resolvedPlatform === 'linux' ? 'icon.png' : 'icon-windows.png'}`, import.meta.url)), to: 'icon.png' },
        // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
        ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
      ],
-@@ -230,8 +234,13 @@ export function createElectronBuilderConfig(
-       },
-       target: ['nsis'],
+@@ -234,6 +234,8 @@ export function createElectronBuilderConfig(
      },
-+    // The modern AppImage runtime is statically linked, so the artifact runs on distributions
-+    // that ship FUSE 3 only, such as Arch. The legacy 0.0.0 runtime needs libfuse.so.2.
-+    toolsets: { appimage: '1.0.3' },
      linux: {
        category: 'Development',
 +      icon: fileURLToPath(new URL('../resources/icon.png', import.meta.url)),
@@ -359,53 +465,8 @@ index 1fb787803c..a62a1f549e 100644
        target: ['AppImage'],
      },
      nsis: {
-diff --git a/apps/desktop/scripts/linux-runtime-adjustments.ts b/apps/desktop/scripts/linux-runtime-adjustments.ts
-new file mode 100644
-index 0000000000..9bc75195ed
---- /dev/null
-+++ b/apps/desktop/scripts/linux-runtime-adjustments.ts
-@@ -0,0 +1,39 @@
-+/**
-+ * Post-install adjustments the Linux release needs because neither Electron nor the
-+ * published dependency set has ever been qualified against it.
-+ *
-+ * The Windows and macOS releases never needed this adjustment, so they keep the
-+ * registry packages exactly as installed.
-+ *
-+ * LibreOfficeKit decides whether an optional native engine package is installed by
-+ * probing `lstatSync(path, { throwIfNoEntry: false })`. Electron's ASAR filesystem
-+ * returns `null` rather than `undefined` for a missing entry, so the probe reports
-+ * every name as installed and Linux can never fall back to the bundled WASM engine:
-+ * conversion fails with "installed package is incomplete" instead.
-+ */
-+
-+import { readFileSync, writeFileSync } from 'node:fs'
-+import { join } from 'node:path'
-+
-+/** Engine that resolves the optional native LibreOfficeKit package. */
-+const OFFICE_ENGINE_PACKAGE = '@deepseek-ai/libreoffice-kit'
-+const OFFICE_ENGINE_ENTRY = 'lib/index.js'
-+
-+/** ASAR-insensitive existence probe that replaces the published one. */
-+const OFFICE_ENGINE_EXISTENCE_CHECK = 'lstatSync(join(directory, name), { throwIfNoEntry: false }) !== void 0'
-+const OFFICE_ENGINE_EXISTENCE_FIX = 'Boolean(lstatSync(join(directory, name), { throwIfNoEntry: false }))'
-+
-+/**
-+ * Make the LibreOfficeKit engine probe work inside an ASAR archive.
-+ * @param root - Prepared dsh tree that becomes `resources/app.asar/dsh`.
-+ * @throws When the installed engine no longer contains the probe this fixes.
-+ */
-+export function fixLibreOfficeEngineFallback(root: string): void {
-+  const path = join(root, 'node_modules', ...OFFICE_ENGINE_PACKAGE.split('/'), OFFICE_ENGINE_ENTRY)
-+  const source = readFileSync(path, 'utf8')
-+  const occurrences = source.split(OFFICE_ENGINE_EXISTENCE_CHECK).length - 1
-+  if (occurrences !== 1) {
-+    throw new Error(`desktop runtime: ${OFFICE_ENGINE_PACKAGE} no longer contains the installed-package probe this build patches`)
-+  }
-+  writeFileSync(path, source.replace(OFFICE_ENGINE_EXISTENCE_CHECK, OFFICE_ENGINE_EXISTENCE_FIX))
-+}
 diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
-index 62f4fcbbb2..806ce260d8 100644
+index 6d8c1288fa..2d084dbae0 100644
 --- a/apps/desktop/scripts/package-target.ts
 +++ b/apps/desktop/scripts/package-target.ts
 @@ -47,14 +47,14 @@ const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
@@ -440,44 +501,7 @@ index 62f4fcbbb2..806ce260d8 100644
  }
  
  /**
-@@ -125,6 +132,16 @@ function isTargetName(value: string): value is DesktopPackageTargetName {
-   return Object.hasOwn(TARGETS, value)
- }
- 
-+/**
-+ * Return the completion-record filename for a target that publishes to an update feed.
-+ * @param name - Supported release target.
-+ * @returns Record filename stored beside the artifacts.
-+ */
-+function releaseRecordFilename(name: DesktopPackageTargetName): string {
-+  if (name === 'linux-x64') throw new Error('desktop package: Linux publishes no update feed')
-+  return desktopBuildRecordFilename(name)
-+}
-+
- function packageVersion(path: string, label: string): string {
-   const manifest = JSON.parse(readFileSync(path, 'utf8')) as { version?: unknown }
-   if (typeof manifest.version !== 'string' || manifest.version === '') {
-@@ -138,6 +155,8 @@ function writeReleaseRecord(
-   environment: NodeJS.ProcessEnv,
-   artifactsRoot: string,
- ): void {
-+  // Fails before any release setting is read: Linux publishes to no update feed.
-+  const recordPath = join(artifactsRoot, releaseRecordFilename(target.name))
-   const desktopVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
-   const dshVersion = packageVersion(join(REPOSITORY_ROOT, 'package.json'), 'dsh package')
-   if (desktopVersion !== dshVersion) {
-@@ -145,8 +164,8 @@ function writeReleaseRecord(
-   }
-   const buildVersion = resolveDesktopBuildVersion(environment, dshVersion)
-   const packaged = resolveDesktopBuildCommit(environment)
--  const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
--  const recordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
-+  const update = resolveDesktopAutoUpdateConfig(environment,
-+    target.name === 'win-x64' ? 'win32' : 'darwin', target.arch)
-   const temporaryPath = `${recordPath}.tmp`
-   writeFileSync(temporaryPath, `${JSON.stringify({
-     schemaVersion: 1,
-@@ -179,6 +198,9 @@ export function resolveDesktopPackageTarget(
+@@ -179,6 +186,9 @@ export function resolveDesktopPackageTarget(
    if (target.platform === 'win32' && (hostPlatform !== 'win32' || hostArch !== 'x64')) {
      throw new Error('desktop package: win-x64 requires a Windows x64 build host')
    }
@@ -487,7 +511,7 @@ index 62f4fcbbb2..806ce260d8 100644
    if (target.platform === 'darwin' && hostPlatform !== 'darwin') {
      throw new Error(`desktop package: ${name} requires a macOS build host`)
    }
-@@ -368,8 +390,10 @@ async function main(): Promise<void> {
+@@ -368,8 +378,10 @@ async function main(): Promise<void> {
          notarizationProxyConfigured: settings.notarizationProxy !== undefined })
        await packagingStep(run.directory, 'macos-package', () => withMacOSSigningKeychain(environment,
          signingEnvironment => packageTarget(invocation, signingEnvironment, run)), secrets)
@@ -499,44 +523,11 @@ index 62f4fcbbb2..806ce260d8 100644
      }
      success = true
    } catch (error) {
-@@ -402,8 +426,11 @@ export async function packageTarget(
-   const mac = target.platform === 'darwin' ? resolveMacOSPackageSettings(environment) : undefined
-   const packArguments = mac === undefined ? [] : ['--concurrency', String(mac.packConcurrency)]
-   const buildPaths = desktopTargetBuildPaths(target.name)
--  const releaseRecordPath = join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
--  if (!invocation.prepareOnly && !invocation.unsigned) {
-+  // Linux has no published update feed, so it writes no upload record.
-+  const releaseRecordPath = target.platform === 'linux'
-+    ? undefined
-+    : join(buildPaths.artifacts, releaseRecordFilename(target.name))
-+  if (releaseRecordPath !== undefined && !invocation.prepareOnly && !invocation.unsigned) {
-     rmSync(releaseRecordPath, { force: true })
-     rmSync(`${releaseRecordPath}.tmp`, { force: true })
-   }
-@@ -496,7 +523,9 @@ export async function packageTarget(
-     await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
-     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts', ...(invocation.unsigned ? ['--unsigned'] : [])], targetEnv)
-   }
--  if (!invocation.directory && !invocation.unsigned) writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
-+  if (releaseRecordPath !== undefined && !invocation.directory && !invocation.unsigned) {
-+    writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
-+  }
-   if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: buildPaths.artifacts })
- }
- 
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index 442e01757e..06fbba6b2b 100644
+index 6498112231..06fbba6b2b 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
-@@ -30,6 +30,7 @@ import {
-   signMacOSRuntime,
- } from './macos-runtime.ts'
- import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
-+import { fixLibreOfficeEngineFallback } from './linux-runtime-adjustments.ts'
- import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
- import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
- 
-@@ -41,7 +42,10 @@ const STORE_ROOT = join(BUILD_ROOT, 'store')
+@@ -42,7 +42,10 @@ const STORE_ROOT = join(BUILD_ROOT, 'store')
  const RUNTIME_ROOT = BUILD_PATHS.runtime
  const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
  const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
@@ -548,20 +539,6 @@ index 442e01757e..06fbba6b2b 100644
  const PNPM = join(RUNTIME_ROOT, 'pnpm', 'bin', 'pnpm.mjs')
  
  function manifestVersion(path: string, subject: string): string {
-@@ -145,6 +149,13 @@ async function main(): Promise<void> {
-       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
-       dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
-     }, undefined, 2)}\n`)
-+    // Electron's ASAR filesystem defeats the LibreOfficeKit native-engine probe, which
-+    // must fail here for Linux to fall back to the bundled WASM engine.
-+    if (target.platform === 'linux') {
-+      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:linux-adjustments', async () => {
-+        fixLibreOfficeEngineFallback(DSH_OUTPUT_ROOT)
-+      })
-+    }
-     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
-       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
-         throw new Error(`desktop runtime: missing private Host file ${file}`)
 diff --git a/apps/desktop/scripts/prepare-runtime.ts b/apps/desktop/scripts/prepare-runtime.ts
 index 1b88f091bc..df3175c5db 100644
 --- a/apps/desktop/scripts/prepare-runtime.ts
@@ -703,22 +680,6 @@ index c802f668d2..c69f250315 100644
      expect(() => resolveDesktopPackageTarget('win-x64', 'darwin', 'arm64')).toThrow(/Windows x64/u)
      expect(() => resolveDesktopPackageTarget('mac-arm64', 'darwin', 'x64')).toThrow(/Apple Silicon/u)
      expect(() => resolveDesktopPackageTarget('mac-arm64', 'linux', 'arm64')).toThrow(/macOS/u)
-diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
-index 45028746ff..dd71524623 100644
---- a/packages/sandbox/sandbox-local/src/index.ts
-+++ b/packages/sandbox/sandbox-local/src/index.ts
-@@ -552,7 +552,13 @@ export class LocalSandboxProvider extends SandboxProvider {
- 
-   /** The Landlock launcher to probe and exec (test hook over the resolved one). */
-   private landlockLauncher(): string {
--    return this.internals.landlockLauncher ?? landlockLauncherPath()
-+    if (this.internals.landlockLauncher !== undefined) return this.internals.landlockLauncher
-+    // Electron's spawn/execFile handles ASAR paths only for execFile, not
-+    // for spawnSync (used by the probe below).  Flatpak deployments ship
-+    // a copy of the launcher outside the read-only ASAR archive so that
-+    // the probe and confine() can spawn it on a real filesystem path.
-+    if (process.env.DSH_LANDLOCK_LAUNCHER !== undefined) return process.env.DSH_LANDLOCK_LAUNCHER
-+    return landlockLauncherPath()
-   }
- 
-   /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
+-- 
+2.53.0
+
