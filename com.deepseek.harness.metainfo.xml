@@ -5,12 +5,15 @@
   <summary>DeepSeek Harness desktop application</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
+  <launchable type="desktop-id">com.deepseek.harness.desktop</launchable>
+  <url type="homepage">https://github.com/deepseek-ai/deepseek-harness</url>
   <description>
     <p>DeepSeek Harness desktop application with Electron shell and bundled dsh runtime.</p>
   </description>
   <categories>
     <category>Development</category>
   </categories>
-  <url type="homepage">https://github.com/deepseek-ai/deepseek-harness</url>
-  <launchable type="desktop-id">com.deepseek.harness.desktop</launchable>
+  <releases>
+    <release version="0.2.1-alpha.1" date="2026-10-03"/>
+  </releases>
 </component>
