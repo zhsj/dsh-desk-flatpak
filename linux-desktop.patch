@@ -816,35 +816,3 @@ index 45028746ff..dd71524623 100644
    }
  
    /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
-diff --git a/scripts/primary-runtime/prepare.ts b/scripts/primary-runtime/prepare.ts
-index a156a7564a..7aeaa91f26 100644
---- a/scripts/primary-runtime/prepare.ts
-+++ b/scripts/primary-runtime/prepare.ts
-@@ -23,14 +23,25 @@ import lock from './lock.json' with { type: 'json' }
- export async function downloadPrimaryRuntimeAsset(url: string, sha256: string, cache: string): Promise<string> {
-   const destination = join(cache, sha256)
-   let bytes: Buffer
-+  let cacheHit = true
-   try { bytes = readFileSync(destination) } catch (error) {
-     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
--    const response = await fetch(url)
-+    cacheHit = false
-+    const proxy = process.env.https_proxy || process.env.HTTP_PROXY || process.env.DSH_DESKTOP_DOWNLOAD_PROXY
-+    let doFetch: typeof globalThis.fetch = globalThis.fetch
-+    if (proxy?.trim()) {
-+      const undiciModule = createRequire(import.meta.url)('undici')
-+      const proxyAgent = new undiciModule.ProxyAgent(proxy.trim())
-+      doFetch = ((input: RequestInfo | URL, init?: RequestInit) =>
-+        undiciModule.fetch(input, { ...init, dispatcher: proxyAgent })) as typeof globalThis.fetch
-+    }
-+    const response = await doFetch(url)
-     if (!response.ok) throw new Error(`primary runtime download: ${String(response.status)} ${url}`)
-     bytes = Buffer.from(await response.arrayBuffer())
-   }
-   if (createHash('sha256').update(bytes).digest('hex') !== sha256) throw new Error(`primary runtime download: checksum mismatch for ${url}`)
--  writeFileSync(destination, bytes)
-+  // A cache hit already holds verified bytes; only a download that just passed the digest check is written back.
-+  if (!cacheHit) writeFileSync(destination, bytes)
-   return destination
- }
- 

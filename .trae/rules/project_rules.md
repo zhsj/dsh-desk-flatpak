@@ -56,42 +56,12 @@ flatpak run com.deepseek.harness
 3. 与原始分支 diff 生成 patch 文件：`git diff <base-branch>..linux-flatpak > ../linux-desktop.patch`
 4. Patch 在 manifest 中通过 `sources.patch` 应用，目标目录为 `deepseek-harness`
 
-## 镜像与代理
+## 依赖源
 
-### NPM 镜像
-
-- 主镜像：`https://registry.npmmirror.com`
-- 通过环境变量 `NPM_CONFIG_REGISTRY` 和 `DSH_DESKTOP_NPM_REGISTRY` 设置
-- **注意**：`pnpm-lock.yaml` 中不含 `registry.npmjs.org` 地址，registry 出现在 `scripts/dependency-catalog/package-lock.json` 和 `apps/desktop/scripts/desktop-release-environment.mjs`（`DEFAULT_NPM_REGISTRY`）中
-- pnpm install 时通过 `--registry` 参数指定镜像：`pnpm install --registry "${NPM_CONFIG_REGISTRY}"`
-- 必须去掉 `--frozen-lockfile` 参数，否则 pnpm 会使用 lockfile 中硬编码的 registry
-
-### Electron 镜像
-
-- `ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"`
-
-### 代理配置
-
-- `https_proxy` 通过 `secret-env` 传入 Flatpak 构建环境
-- `NO_PROXY=.npmmirror.com` 排除 npm 镜像域名，避免代理 npmmirror 降低速度
-- `NO_PROXY` 使用大写（`NPM_CONFIG_REGISTRY` 等也统一大写）
-- **注意**：`npmmirror.com` 包含了 `registry.npmmirror.com`
-
-### undici 代理支持
-
-undici 的 `fetch` 不支持全局 `https_proxy` 环境变量，需显式传入 `ProxyAgent`：
-
-```typescript
-const proxy = process.env.https_proxy || process.env.HTTP_PROXY || process.env.DSH_DESKTOP_DOWNLOAD_PROXY
-let doFetch: typeof globalThis.fetch = globalThis.fetch
-if (proxy?.trim()) {
-  const undiciModule = createRequire(import.meta.url)('undici')
-  const proxyAgent = new undiciModule.ProxyAgent(proxy.trim())
-  doFetch = ((input, init) => undiciModule.fetch(input, { ...init, dispatcher: proxyAgent }))
-}
-```
-
-使用 `createRequire` 而非 `import` 绕过 TypeScript 类型检查（`TS2307: Cannot find module 'undici'`）。
+- 不使用镜像或代理：pnpm/npm 走官方默认源 `https://registry.npmjs.org/`，Electron 二进制从 GitHub releases 下载
+- manifest 中不设置 `NPM_CONFIG_REGISTRY`、`DSH_DESKTOP_NPM_REGISTRY`、`ELECTRON_MIRROR`
+- `apps/desktop/scripts/desktop-release-environment.mjs` 的 `resolveNpmRegistry` 在 `DSH_DESKTOP_NPM_REGISTRY` 未设置时回退到 `DEFAULT_NPM_REGISTRY`（`https://registry.npmjs.org/`）
+- `pnpm-lock.yaml` 中不含任何 registry 地址，`pnpm install --frozen-lockfile` 可直接使用
 
 ## 应用运行时
 
@@ -160,7 +130,7 @@ build-options:
 
 1. `npm install pnpm@11.7.0`
 2. `cd deepseek-harness`
-3. `pnpm install --registry "${NPM_CONFIG_REGISTRY}"`
+3. `pnpm install --frozen-lockfile`
 4. `pnpm --filter @deepseek-ai/dsh-desktop run package:dir`
 5. 复制 `linux-unpacked` 到 `/app/main/`
 
