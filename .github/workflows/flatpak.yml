@@ -17,19 +17,74 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    name: Build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aetherpak/cli:v0.33.3-builder
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aetherpak/actions/build@v3
+        with:
+          manifest-path: com.deepseek.harness.yml
+          arch: x86_64
+          branch: stable
+          repo-path: _repo
+          run-linter: false
+          upload-bundle: true
+          cli-version: v0.33.3
+
+  # Not the reusable aetherpak/actions publish.yml: it hands the per-cell records
+  # to the site job as an artifact, and with a single artifact its flatten step
+  # keeps only the last cell, dropping the app.
   publish:
-    name: Build and publish
+    name: Publish
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aetherpak/cli:v0.33.3-builder
+      options: --privileged
     permissions:
       contents: read
       packages: write
       pages: write
       id-token: write
-    uses: aetherpak/actions/.github/workflows/publish.yml@v3
-    with:
-      manifest-path: com.deepseek.harness.yml
-      arches: x86_64
-      oci-repository: ${{ github.repository }}
-      remote-name: dsh
-      run-linter: false
-      upload-bundle: ${{ github.event_name == 'pull_request' }}
-      dry-run: ${{ github.event_name == 'pull_request' }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        uses: aetherpak/actions/build@v3
+        with:
+          manifest-path: com.deepseek.harness.yml
+          arch: x86_64
+          branch: stable
+          repo-path: _repo
+          run-linter: false
+          cli-version: v0.33.3
+
+      - name: Push OCI image
+        uses: aetherpak/actions/publish-oci@v3
+        with:
+          repo-path: _repo
+          registry: ghcr.io
+          oci-repository: ${{ github.repository }}
+          records-dir: _records
+          registry-token: ${{ github.token }}
+          cli-version: v0.33.3
+
+      - name: Build repository site
+        uses: aetherpak/actions/publish-site@v3
+        with:
+          records-dir: _records
+          pages-url: https://zhsj.me/dsh-desk-flatpak
+          remote-name: dsh
+          oci-repository: ${{ github.repository }}
+          cli-version: v0.33.3
+
+      - id: deploy
+        uses: actions/deploy-pages@v5

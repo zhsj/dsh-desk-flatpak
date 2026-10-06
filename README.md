@@ -9,7 +9,7 @@ App ID: `com.deepseek.harness`
 
 ```bash
 flatpak remote-add --if-not-exists --user --no-gpg-verify \
-  dsh oci+https://zhsj.github.io/dsh-desk-flatpak
+  dsh oci+https://zhsj.me/dsh-desk-flatpak
 flatpak install --user dsh com.deepseek.harness
 flatpak run com.deepseek.harness
 ```
