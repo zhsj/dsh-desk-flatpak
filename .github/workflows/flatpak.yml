@@ -16,30 +16,20 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  MANIFEST_PATH: com.deepseek.harness.yml
-  BUNDLE: com.deepseek.harness.flatpak
-  BUNDLE_ARTIFACT: com.deepseek.harness-x86_64.flatpak
-
 jobs:
-  build:
-    name: Build Flatpak
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-      options: --privileged
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Build bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: ${{ env.MANIFEST_PATH }}
-          bundle: ${{ env.BUNDLE }}
-          artifact-name: ${{ env.BUNDLE_ARTIFACT }}
-          build-dir: build-dir
-          repo-dir: repo-dir
-          verbose: true
+  publish:
+    name: Build and publish
+    permissions:
+      contents: read
+      packages: write
+      pages: write
+      id-token: write
+    uses: aetherpak/actions/.github/workflows/publish.yml@v3
+    with:
+      manifest-path: com.deepseek.harness.yml
+      arches: x86_64
+      oci-repository: ${{ github.repository }}
+      remote-name: dsh
+      run-linter: false
+      upload-bundle: ${{ github.event_name == 'pull_request' }}
+      dry-run: ${{ github.event_name == 'pull_request' }}
