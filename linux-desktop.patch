@@ -1,7 +1,7 @@
-From b6d45d601d7f4468470712b1b99c90d82fa8b4c3 Mon Sep 17 00:00:00 2001
+From 8cf06c63e899fbcb1c0e53c7e6a867b947b22527 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/4] fix(desktop): patch the LibreOfficeKit probe for the
+Subject: [PATCH 1/5] fix(desktop): patch the LibreOfficeKit probe for the
  Linux runtime
 
 Electron's ASAR filesystem returns `null` rather than `undefined` for a
@@ -10,7 +10,7 @@ reports every name as installed and Linux can never fall back to the
 bundled WASM engine: conversion fails with "installed package is
 incomplete" instead.
 
-Assisted-by: Trae IDE (DeepSeek-V4-Pro)
+Assisted-by: Trae:DeepSeek-V4-Pro
 ---
  .../scripts/linux-runtime-adjustments.ts      | 39 +++++++++++++++++++
  apps/desktop/scripts/prepare-dsh.ts           |  8 ++++
@@ -92,10 +92,10 @@ index 442e01757e..6498112231 100644
 2.53.0
 
 
-From 7fe634de668756885d857ef31f12926ea5e54e29 Mon Sep 17 00:00:00 2001
+From 8c833b24259d112db3596344501d3ea0957d3abb Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
-Subject: [PATCH 2/4] fix(desktop): make the landlock sandbox work from the
+Subject: [PATCH 2/5] fix(desktop): make the landlock sandbox work from the
  packaged app
 
 The ASAR archive stays read-only and Electron resolves ASAR paths only for
@@ -108,7 +108,7 @@ sandbox-local provider found no usable backend inside the Flatpak bundle:
   deployment that copies the launcher outside the archive can point the
   provider at it.
 
-Assisted-by: Claude-Code:DeepSeek-V4-Pro
+Assisted-by: Trae:DeepSeek-V4-Pro
 ---
  apps/desktop/scripts/electron-builder-config.mjs | 2 +-
  packages/sandbox/sandbox-local/src/index.ts      | 8 +++++++-
@@ -150,11 +150,41 @@ index 45028746ff..dd71524623 100644
 2.53.0
 
 
-From bc07fd6f9720d900c76b45bde3eb410ac09f721d Mon Sep 17 00:00:00 2001
+From 66473a2d8d3e9149b866b52327cf95b37e553c3f Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Wed, 7 Oct 2026 15:56:46 +0800
+Subject: [PATCH 3/5] fix(desktop): hide 'Check for Updates' menu on Linux
+
+Flatpak applications are updated through the system package manager
+and have no need for built-in self-update functionality.
+
+Assisted-by: Trae:DeepSeek-V4-Pro
+---
+ apps/desktop/src/main.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index b4b8153b7f..3225f1bb24 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -952,7 +952,7 @@ async function main(): Promise<void> {
+         click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
+       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
+     { type: 'separator' },
+-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
++    ...(process.platform !== 'linux' ? [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }] : []),
+     ...process.platform === 'darwin' || process.platform === 'win32'
+       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
+     ...development ? [
+-- 
+2.53.0
+
+
+From e38e936638da8e2a53bab8eeec785d51ebc16f69 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 3/4] feat(desktop): skip auto-update feed and mandatory policy
- for linux-x64
+Subject: [PATCH 4/5] fix(desktop): skip auto-update feed and mandatory policy
+ for linux
 
 Linux ships unsigned with no auto-update feed, so:
 - Skip update feed configuration in electron-builder
@@ -241,10 +271,10 @@ index 62f4fcbbb2..6d8c1288fa 100644
 2.53.0
 
 
-From a06b138d82690597f381c1efc1e5db44e6d4ef69 Mon Sep 17 00:00:00 2001
+From 762394f88d13ec0bb9335f8d5ec9ea754fb9024e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
-Subject: [PATCH 4/4] feat(desktop): add the linux-x64 packaging target
+Subject: [PATCH 5/5] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: Trae:DeepSeek-V4-Pro
 ---
