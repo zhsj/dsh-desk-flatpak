@@ -26,33 +26,40 @@ modules:
     buildsystem: simple
     build-options:
       no-debuginfo: true
-      build-args:
-        - --share=network
       append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
       env:
         DSH_DESKTOP_TARGET_PLATFORM: linux
         DSH_DESKTOP_TARGET_ARCH: x64
-        ELECTRON_BUILDER_CACHE: /run/build/dsh-desktop/.electron-builder-cache
-        ELECTRON_CACHE: /run/build/dsh-desktop/.electron-cache
+        XDG_CACHE_HOME: /run/build/dsh-desktop/flatpak-node/cache
+        PNPM_CONFIG_STORE_DIR: /run/build/dsh-desktop/flatpak-node/pnpm-store
+        PNPM_CONFIG_MINIMUM_RELEASE_AGE: "0"
+        PNPM_CONFIG_TRUST_POLICY: never
     build-commands:
       - |
-        set -eu
+        set -eux
 
-        npm install pnpm@11.7.0
+        npm install ${FLATPAK_BUILDER_BUILDDIR}/flatpak-node/pnpm-tarballs/pnpm-*.tgz
 
         cd deepseek-harness
 
-        pnpm install --frozen-lockfile
+        pnpm install --frozen-lockfile --offline
+
+        mkdir -p apps/desktop/.desktop-build
+        ln -srf ${FLATPAK_BUILDER_BUILDDIR}/assets apps/desktop/.desktop-build/downloads
+        for d in ${XDG_CACHE_HOME}/electron/*/; do
+          n=$(basename "$d")
+          [ ${#n} -eq 64 ] && ln -srf "$d" "${FLATPAK_BUILDER_BUILDDIR}/assets/$n"
+        done
 
         cp "${FLATPAK_BUILDER_BUILDDIR}/env" apps/desktop/.env.linux
 
         pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
-        APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
         mkdir -p /app/main
+        APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
         cp -a "${APPDIR}/." /app/main/
 
-        cp -a "${APPDIR}/resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/node-addon-system-linux-x64/bin/landlock-run" /app/bin/landlock-run
+        find "${APPDIR}" -name landlock-run -executable -exec ln -sf {} /app/bin/ \;
     sources:
       - type: file
         path: env
@@ -67,6 +74,8 @@ modules:
         options:
           - -d
           - deepseek-harness
+      - generated/node-sources.json
+      - generated/runtime-sources.json
 
   - name: desktop-integration
     buildsystem: simple
