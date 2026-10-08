@@ -26,6 +26,8 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v7
+      - name: Install bsdunzip
+        run: dnf install -y bsdunzip
       - uses: aetherpak/actions/build@v3
         with:
           manifest-path: com.deepseek.harness.yml
