@@ -16,7 +16,6 @@ finish-args:
   - --socket=pulseaudio
   - --device=dri
   - --env=GIT_EXEC_PATH=/app/libexec/git-core
-  - --env=DSH_DESKTOP_APP_ID=com.deepseek.harness
   - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
@@ -38,7 +37,7 @@ modules:
       - |
         set -eux
 
-        npm install pnpm@11.7.0
+        npm install pnpm@11.28.5
 
         cd deepseek-harness
 

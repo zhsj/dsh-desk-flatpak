@@ -255,7 +255,7 @@ index a133ccdcf8..cfcf295d17 100644
 2.53.0
 
 
-From 6e4f5af592fb70bf7543c049a36ed347a7e01607 Mon Sep 17 00:00:00 2001
+From 39605abb8a107689e27b4fbf25a1415b22853051 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 5/5] feat(desktop): add the linux-x64 packaging target
@@ -270,14 +270,14 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  .../scripts/desktop-package-environment.mjs   |  2 +-
  .../scripts/desktop-toolchain-preflight.ts    |  4 ++--
  apps/desktop/scripts/desktop-upload-plan.ts   |  1 +
- .../scripts/electron-builder-config.mjs       |  4 +++-
+ .../scripts/electron-builder-config.mjs       |  3 +++
  apps/desktop/scripts/package-target.ts        | 20 +++++++++++++++----
  apps/desktop/scripts/prepare-dsh.ts           |  5 ++++-
  apps/desktop/scripts/prepare-runtime.ts       |  5 +++--
  .../desktop/scripts/smoke-packaged-runtime.ts |  9 ++++++---
  .../desktop/tests/desktop-build-paths.spec.ts | 12 +++++++----
  apps/desktop/tests/package-target.spec.ts     |  6 +++++-
- 15 files changed, 56 insertions(+), 25 deletions(-)
+ 15 files changed, 56 insertions(+), 24 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 3cb86ce87d..58b44e9e30 100644
@@ -408,19 +408,18 @@ index 439a4fa6e1..b3dbaf21e2 100644
    'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
    'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index db5d3fe3bf..cc6bcf56aa 100644
+index db5d3fe3bf..9929786d98 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -142,7 +142,7 @@ export function createElectronBuilderConfig(
-     asarUnpack: unpack,
-     extraResources: [
-       { from: buildPaths.runtime, to: 'runtime' },
--      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
-+      { from: fileURLToPath(new URL(`../resources/${resolvedPlatform === 'linux' ? 'icon.png' : 'icon-windows.png'}`, import.meta.url)), to: 'icon.png' },
-       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
-       ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
-     ],
-@@ -232,6 +232,8 @@ export function createElectronBuilderConfig(
+@@ -104,6 +104,7 @@ export function createElectronBuilderConfig(
+       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
+       ...buildVersion === productVersion ? {} : { version: buildVersion },
+       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
++      ...(resolvedPlatform === 'linux' ? { desktopName: appId } : {}),
+     },
+     productName: 'DeepSeek Harness',
+     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
+@@ -232,6 +233,8 @@ export function createElectronBuilderConfig(
      },
      linux: {
        category: 'Development',
