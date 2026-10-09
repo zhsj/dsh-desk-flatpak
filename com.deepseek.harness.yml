@@ -48,7 +48,7 @@ modules:
         mkdir -p /app/main
         APPDIR=apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked
         cp -a "${APPDIR}/." /app/main/
-        ln -sf "$(find "${APPDIR}" -name landlock-run -executable -print -quit)" /app/bin/
+        ln -srf "$(find /app/main/ -name landlock-run -executable -print -quit)" /app/bin/
     sources:
       - type: git
         url: https://github.com/deepseek-ai/deepseek-harness.git
