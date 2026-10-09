@@ -36,30 +36,24 @@ modules:
         ELECTRON_CACHE: /run/build/dsh-desktop/.electron-cache
     build-commands:
       - |
-        set -eu
+        set -eux
 
         npm install pnpm@11.7.0
 
         cd deepseek-harness
 
         pnpm install --frozen-lockfile
-
-        cp "${FLATPAK_BUILDER_BUILDDIR}/env" apps/desktop/.env.linux
-
         pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
-        APPDIR=apps/desktop/.desktop-build/targets/linux-x64/artifacts/linux-unpacked
         mkdir -p /app/main
+        APPDIR=apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked
         cp -a "${APPDIR}/." /app/main/
-
-        cp -a "${APPDIR}/resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/node-addon-system-linux-x64/bin/landlock-run" /app/bin/landlock-run
+        ln -sf "$(find "${APPDIR}" -name landlock-run -executable -print -quit)" /app/bin/
     sources:
-      - type: file
-        path: env
       - type: git
         url: https://github.com/deepseek-ai/deepseek-harness.git
-        tag: dsh-v0.2.1-alpha.1
-        commit: 5badb15009ae1756c3afe0ae0cef1faafc290ccc
+        tag: dsh-v0.2.1-alpha.2
+        commit: d743267388641bc76f17c45ce8b4c231aed1d32c
         dest: deepseek-harness
       - type: patch
         paths:
@@ -67,6 +61,10 @@ modules:
         options:
           - -d
           - deepseek-harness
+      - type: file
+        path: env
+        dest-filename: .env.linux
+        dest: deepseek-harness/apps/desktop
 
   - name: desktop-integration
     buildsystem: simple
