@@ -1,11 +1,11 @@
 app-id: com.deepseek.harness
 runtime: org.freedesktop.Platform
-runtime-version: "25.08"
+runtime-version: "26.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node24
 base: org.electronjs.Electron2.BaseApp
-base-version: "25.08"
+base-version: "26.08"
 command: deepseek-harness
 separate-locales: false
 
@@ -21,6 +21,25 @@ finish-args:
   - --talk-name=org.kde.StatusNotifierWatcher
 
 modules:
+  - name: libvips
+    buildsystem: meson
+    cleanup:
+      - /bin/vips*
+      - /include/vips/
+      - /share/gir-1.0/
+      - /share/man/
+    sources:
+      - type: git
+        url: https://github.com/libvips/libvips.git
+        tag: v8.18.7
+        commit: 24ad4d042940e6bf99a68871ba886ca8847c9c82
+      - type: file
+        url: https://gist.githubusercontent.com/lovell/313a6901e9db1bf285f2a1f1180499e4/raw/3988223c7dfa4d22745d9392034b0117abef1446/libvips-cpp-soversion.patch
+        sha256: 256b7d6f8c973bb53b20cff5171c7117d6b35d3aa4e72d22cb906f4fe1e2c890
+      - type: shell
+        commands:
+        - patch -p1 < libvips-cpp-soversion.patch
+
   - name: dsh-desktop
     buildsystem: simple
     build-options:

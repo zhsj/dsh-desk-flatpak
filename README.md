@@ -22,7 +22,7 @@ docker run \
   -v "$(pwd)":/workspace \
   -w /workspace \
   --privileged \
-  ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08 \
+  ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08 \
   dbus-run-session -- flatpak-builder \
     --repo=repo-dir \
     --disable-rofiles-fuse \
