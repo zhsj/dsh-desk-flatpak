@@ -1,7 +1,7 @@
 From 79478acf1a658e07922beab7882210eb3565b2b5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/5] fix(desktop): patch the LibreOfficeKit probe for the
+Subject: [PATCH 1/6] fix(desktop): patch the LibreOfficeKit probe for the
  Linux runtime
 
 Electron's ASAR filesystem returns `null` rather than `undefined` for a
@@ -95,7 +95,7 @@ index 7d290b945a..8a557eb0c8 100644
 From 7099e68dd3e3bb9c21410762f56e6e56dec1ede5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
-Subject: [PATCH 2/5] fix(desktop): make the landlock sandbox work from the
+Subject: [PATCH 2/6] fix(desktop): make the landlock sandbox work from the
  packaged app
 
 The ASAR archive stays read-only and Electron resolves ASAR paths only for
@@ -153,7 +153,7 @@ index 45028746ff..dd71524623 100644
 From 460059ef81086f35aeedf67e7c0613ba1e38b186 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
-Subject: [PATCH 3/5] fix(desktop): hide 'Check for Updates' menu on Linux
+Subject: [PATCH 3/6] fix(desktop): hide 'Check for Updates' menu on Linux
 
 Flatpak applications are updated through the system package manager
 and have no need for built-in self-update functionality.
@@ -183,7 +183,7 @@ index 1202670a3e..8b6202034b 100644
 From 965b85e2d0063aa95641ebb8aa6ba2237f00e7ea Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 4/5] fix(desktop): skip auto-update feed and mandatory policy
+Subject: [PATCH 4/6] fix(desktop): skip auto-update feed and mandatory policy
  for linux
 
 Linux ships unsigned with no auto-update feed. Automatically mark builds as
@@ -255,10 +255,110 @@ index a133ccdcf8..cfcf295d17 100644
 2.53.0
 
 
-From 39605abb8a107689e27b4fbf25a1415b22853051 Mon Sep 17 00:00:00 2001
+From c30dfc6d6b34e54c430f8370e93b38266b86203c Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Sat, 10 Oct 2026 15:07:20 +0800
+Subject: [PATCH 5/6] feat(desktop): enable hidden titlebar with overlay for
+ Linux desktop
+
+Apply Windows-style titleBarStyle 'hidden' with titleBarOverlay
+to Linux (non-darwin) platforms in main window, welcome window,
+and preload titlebar marker.
+
+Assisted-by: Trae:DeepSeek-V4-Pro
+---
+ apps/desktop/src/main.ts                | 6 +++---
+ apps/desktop/src/preload-windows.ts     | 2 +-
+ apps/desktop/src/welcome-window.ts      | 4 ++--
+ apps/desktop/tests/main-startup.spec.ts | 2 +-
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index 8b6202034b..16471ce69a 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -211,7 +211,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+     minWidth: 520,
+     minHeight: 600,
+     show,
+-    ...(process.platform === 'win32' && primary ? {
++    ...(process.platform !== 'darwin' && primary ? {
+       titleBarStyle: 'hidden' as const,
+       titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
+         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+@@ -241,7 +241,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+     if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
+     return { action: 'deny' }
+   })
+-  if (process.platform === 'darwin' || process.platform === 'win32') {
++  {
+     // Fullscreen hides native window controls; overlays drop their caption clearance.
+     const sendFullscreen = (): void => {
+       if (!window.isDestroyed()) window.webContents.send(DESKTOP_IPC.windowFullscreen, window.isFullScreen())
+@@ -1010,7 +1010,7 @@ async function main(): Promise<void> {
+     ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
+   })
+ 
+-  if (process.platform === 'win32') {
++  if (process.platform !== 'darwin') {
+     ipcMain.handle(DESKTOP_IPC.windowsMenu, (event, name: unknown, x: unknown, y: unknown) => {
+       assertDesktopSender(event, ['app'])
+       if (mainWindow === undefined || event.sender !== mainWindow.webContents
+diff --git a/apps/desktop/src/preload-windows.ts b/apps/desktop/src/preload-windows.ts
+index 5b9ed75661..ac92a33672 100644
+--- a/apps/desktop/src/preload-windows.ts
++++ b/apps/desktop/src/preload-windows.ts
+@@ -6,7 +6,7 @@ import { installWindowsMenu } from './preload-menu.ts'
+ 
+ /** Install the Windows-only titlebar marker and observe application language and palette changes. */
+ export function syncWindowsAppearance(): void {
+-  if (process.platform !== 'win32') return
++  if (process.platform === 'darwin') return
+   const mark = (): void => {
+     const root = document.documentElement
+     root.dataset.windowsTitlebar = ''
+diff --git a/apps/desktop/src/welcome-window.ts b/apps/desktop/src/welcome-window.ts
+index 61fda9e36a..b1a80e010d 100644
+--- a/apps/desktop/src/welcome-window.ts
++++ b/apps/desktop/src/welcome-window.ts
+@@ -24,14 +24,14 @@ export function welcomeWindowOptions(platform: NodeJS.Platform, locale: DesktopL
+     fullscreenable: false,
+     show: false,
+     title: locale.messages.welcomeTitle,
+-    backgroundColor: platform === 'darwin' || platform === 'win32' ? '#00000000' : '#FFFFFF',
++    backgroundColor: '#00000000',
+     ...(platform === 'darwin' ? {
+       titleBarStyle: 'hidden',
+       trafficLightPosition: { x: 21, y: 21 },
+       vibrancy: 'menu',
+       visualEffectState: 'active',
+     } as const : {}),
+-    ...(platform === 'win32' ? {
++    ...(platform !== 'darwin' ? {
+       titleBarStyle: 'hidden',
+       titleBarOverlay: { color: '#00000000', symbolColor: '#0F1115', height: 42 },
+       backgroundMaterial: 'acrylic',
+diff --git a/apps/desktop/tests/main-startup.spec.ts b/apps/desktop/tests/main-startup.spec.ts
+index d9a8f3103b..463447978a 100644
+--- a/apps/desktop/tests/main-startup.spec.ts
++++ b/apps/desktop/tests/main-startup.spec.ts
+@@ -837,7 +837,7 @@ describe('desktop main startup', () => {
+         { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
+       ])
+     } else {
+-      expect(window.options).not.toHaveProperty('titleBarStyle')
++      expect(window.options).toHaveProperty('titleBarStyle')
+       expect(window.options).not.toHaveProperty('vibrancy')
+     }
+     expect(harness.hosts).toHaveLength(0)
+-- 
+2.53.0
+
+
+From b03d30c2d24f0fbda461ef6b3a50373fc33db11e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
-Subject: [PATCH 5/5] feat(desktop): add the linux-x64 packaging target
+Subject: [PATCH 6/6] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: Trae:DeepSeek-V4-Pro
 ---
