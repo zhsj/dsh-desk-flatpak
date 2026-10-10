@@ -1,27 +1,21 @@
-From 79478acf1a658e07922beab7882210eb3565b2b5 Mon Sep 17 00:00:00 2001
+From afe5e1cde502d424daa40e10975897d98c4f087a Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/6] fix(desktop): patch the LibreOfficeKit probe for the
- Linux runtime
-
-Electron's ASAR filesystem returns `null` rather than `undefined` for a
-missing lstatSync entry, so the LibreOfficeKit native-engine probe
-reports every name as installed and Linux can never fall back to the
-bundled WASM engine: conversion fails with "installed package is
-incomplete" instead.
+Subject: [PATCH 1/6] fix(desktop): hotfix for libreoffice-kit and sharp
+ package
 
 Assisted-by: Trae:DeepSeek-V4-Pro
 ---
- .../scripts/linux-runtime-adjustments.ts      | 39 +++++++++++++++++++
- apps/desktop/scripts/prepare-dsh.ts           |  8 ++++
- 2 files changed, 47 insertions(+)
- create mode 100644 apps/desktop/scripts/linux-runtime-adjustments.ts
+ .../scripts/linux-hotfix-libreoffice-kit.ts   | 39 +++++++++++++++++++
+ apps/desktop/scripts/prepare-dsh.ts           | 14 ++++++-
+ 2 files changed, 52 insertions(+), 1 deletion(-)
+ create mode 100644 apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
 
-diff --git a/apps/desktop/scripts/linux-runtime-adjustments.ts b/apps/desktop/scripts/linux-runtime-adjustments.ts
+diff --git a/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts b/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
 new file mode 100644
 index 0000000000..9bc75195ed
 --- /dev/null
-+++ b/apps/desktop/scripts/linux-runtime-adjustments.ts
++++ b/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
 @@ -0,0 +1,39 @@
 +/**
 + * Post-install adjustments the Linux release needs because neither Electron nor the
@@ -63,18 +57,28 @@ index 0000000000..9bc75195ed
 +  writeFileSync(path, source.replace(OFFICE_ENGINE_EXISTENCE_CHECK, OFFICE_ENGINE_EXISTENCE_FIX))
 +}
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index 7d290b945a..8a557eb0c8 100644
+index 7d290b945a..8c037b9f33 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
-@@ -31,6 +31,7 @@ import {
-   signMacOSRuntime,
- } from './macos-runtime.ts'
- import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
-+import { fixLibreOfficeEngineFallback } from './linux-runtime-adjustments.ts'
+@@ -2,7 +2,7 @@
+ 
+ import { packagingStep } from './packaging-step.mjs'
+ import { spawn } from 'node:child_process'
+-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
++import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+ import { tmpdir } from 'node:os'
+ import { delimiter, join, relative, resolve } from 'node:path'
+ import { desktopNodeEnvironment } from '../src/node-environment.ts'
+@@ -34,6 +34,8 @@ import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetB
  import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
  import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
  
-@@ -148,6 +149,13 @@ async function main(): Promise<void> {
++import { fixLibreOfficeEngineFallback } from './linux-hotfix-libreoffice-kit.ts'
++
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const BUILD_PATHS = resolveDesktopTargetBuildPaths()
+ const DSH_OUTPUT_ROOT = BUILD_PATHS.dsh
+@@ -148,6 +150,16 @@ async function main(): Promise<void> {
        name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
        dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
      }, undefined, 2)}\n`)
@@ -83,6 +87,9 @@ index 7d290b945a..8a557eb0c8 100644
 +    if (target.platform === 'linux') {
 +      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:linux-adjustments', async () => {
 +        fixLibreOfficeEngineFallback(DSH_OUTPUT_ROOT)
++        for (const name of readdirSync(join(DSH_OUTPUT_ROOT, 'node_modules', '@img'))) {
++          if (name.startsWith('sharp-libvips-linux')) rmSync(join(DSH_OUTPUT_ROOT, 'node_modules', '@img', name), { recursive: true, force: true })
++        }
 +      })
 +    }
      for (const file of DESKTOP_HOST_RUNTIME_FILES) {
@@ -92,7 +99,7 @@ index 7d290b945a..8a557eb0c8 100644
 2.53.0
 
 
-From 7099e68dd3e3bb9c21410762f56e6e56dec1ede5 Mon Sep 17 00:00:00 2001
+From 267fb9ae0816b5a2a67b12e17543f72a94685b35 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 2/6] fix(desktop): make the landlock sandbox work from the
@@ -150,7 +157,7 @@ index 45028746ff..dd71524623 100644
 2.53.0
 
 
-From 460059ef81086f35aeedf67e7c0613ba1e38b186 Mon Sep 17 00:00:00 2001
+From d63387b8315767d91be3edac07167cd510c3840d Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 3/6] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -180,7 +187,7 @@ index 1202670a3e..8b6202034b 100644
 2.53.0
 
 
-From 965b85e2d0063aa95641ebb8aa6ba2237f00e7ea Mon Sep 17 00:00:00 2001
+From 4170bc794abe258104264dcf54b9bd06ae252c0b Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 4/6] fix(desktop): skip auto-update feed and mandatory policy
@@ -255,7 +262,7 @@ index a133ccdcf8..cfcf295d17 100644
 2.53.0
 
 
-From 4e3ed39eef600589ffce14f394d7c43adf9feef5 Mon Sep 17 00:00:00 2001
+From fc62072213b5bac295e2d99d6f5530ff2a53e49c Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 5/6] feat(desktop): enable hidden titlebar with overlay for
@@ -333,7 +340,7 @@ index d9a8f3103b..463447978a 100644
 2.53.0
 
 
-From 9d602927fd0d44511f79d0fd15e1d308c6e6b62d Mon Sep 17 00:00:00 2001
+From e858e5d31a2989ad55e831da5b48f19cfe5da946 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 6/6] feat(desktop): add the linux-x64 packaging target
@@ -565,10 +572,10 @@ index cfcf295d17..a7bfc968ad 100644
      success = true
    } catch (error) {
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index 8a557eb0c8..22b3e821ff 100644
+index 8c037b9f33..d11f87ea62 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
-@@ -43,7 +43,10 @@ const STORE_ROOT = join(BUILD_ROOT, 'store')
+@@ -44,7 +44,10 @@ const STORE_ROOT = join(BUILD_ROOT, 'store')
  const RUNTIME_ROOT = BUILD_PATHS.runtime
  const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
  const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
