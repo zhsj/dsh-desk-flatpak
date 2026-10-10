@@ -255,7 +255,7 @@ index a133ccdcf8..cfcf295d17 100644
 2.53.0
 
 
-From c30dfc6d6b34e54c430f8370e93b38266b86203c Mon Sep 17 00:00:00 2001
+From 4e3ed39eef600589ffce14f394d7c43adf9feef5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 5/6] feat(desktop): enable hidden titlebar with overlay for
@@ -269,9 +269,8 @@ Assisted-by: Trae:DeepSeek-V4-Pro
 ---
  apps/desktop/src/main.ts                | 6 +++---
  apps/desktop/src/preload-windows.ts     | 2 +-
- apps/desktop/src/welcome-window.ts      | 4 ++--
  apps/desktop/tests/main-startup.spec.ts | 2 +-
- 4 files changed, 7 insertions(+), 7 deletions(-)
+ 3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
 index 8b6202034b..16471ce69a 100644
@@ -317,27 +316,6 @@ index 5b9ed75661..ac92a33672 100644
    const mark = (): void => {
      const root = document.documentElement
      root.dataset.windowsTitlebar = ''
-diff --git a/apps/desktop/src/welcome-window.ts b/apps/desktop/src/welcome-window.ts
-index 61fda9e36a..b1a80e010d 100644
---- a/apps/desktop/src/welcome-window.ts
-+++ b/apps/desktop/src/welcome-window.ts
-@@ -24,14 +24,14 @@ export function welcomeWindowOptions(platform: NodeJS.Platform, locale: DesktopL
-     fullscreenable: false,
-     show: false,
-     title: locale.messages.welcomeTitle,
--    backgroundColor: platform === 'darwin' || platform === 'win32' ? '#00000000' : '#FFFFFF',
-+    backgroundColor: '#00000000',
-     ...(platform === 'darwin' ? {
-       titleBarStyle: 'hidden',
-       trafficLightPosition: { x: 21, y: 21 },
-       vibrancy: 'menu',
-       visualEffectState: 'active',
-     } as const : {}),
--    ...(platform === 'win32' ? {
-+    ...(platform !== 'darwin' ? {
-       titleBarStyle: 'hidden',
-       titleBarOverlay: { color: '#00000000', symbolColor: '#0F1115', height: 42 },
-       backgroundMaterial: 'acrylic',
 diff --git a/apps/desktop/tests/main-startup.spec.ts b/apps/desktop/tests/main-startup.spec.ts
 index d9a8f3103b..463447978a 100644
 --- a/apps/desktop/tests/main-startup.spec.ts
@@ -355,7 +333,7 @@ index d9a8f3103b..463447978a 100644
 2.53.0
 
 
-From b03d30c2d24f0fbda461ef6b3a50373fc33db11e Mon Sep 17 00:00:00 2001
+From 9d602927fd0d44511f79d0fd15e1d308c6e6b62d Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 6/6] feat(desktop): add the linux-x64 packaging target
