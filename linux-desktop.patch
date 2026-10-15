@@ -1,4 +1,4 @@
-From 9cf4f3c594ee569d4321936e0ec97c826d89ffc9 Mon Sep 17 00:00:00 2001
+From aa84b2f6c9c1655532bf43b885572c6797e05ef0 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/7] fix(desktop): hotfix for libreoffice-kit and sharp
@@ -99,7 +99,7 @@ index 9de39d3ff2..d2e2163347 100644
 2.53.0
 
 
-From 9b9a75d192f4ff70395a8049279b07f531a44853 Mon Sep 17 00:00:00 2001
+From 77537c0574f66fad6b846093d7e0508e24ac1cab Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
@@ -157,7 +157,7 @@ index 45028746ff..dd71524623 100644
 2.53.0
 
 
-From 31cd40913cd730741e9079e498274d8cdada3438 Mon Sep 17 00:00:00 2001
+From 4926906c5ad1533d192394ef88dcbefa9a4dea33 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 3/7] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -187,7 +187,7 @@ index 2afdfd7194..26cfbea715 100644
 2.53.0
 
 
-From a4e5b158f5f68e4b9d4c2f0ea12ab462743717e2 Mon Sep 17 00:00:00 2001
+From edf612e5b4848c7e9c16fd2c4ab42e80b2f33cfb Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 4/7] feat(desktop): enable hidden titlebar with overlay for
@@ -265,7 +265,7 @@ index d9a8f3103b..463447978a 100644
 2.53.0
 
 
-From fe59833f659586b3a7c63d6429056d63d908ad3e Mon Sep 17 00:00:00 2001
+From f8e5578addf5aef418b8361624c0e9788985a49a Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
 Subject: [PATCH 5/7] feat(desktop): enable system tray icon on Linux
@@ -308,7 +308,7 @@ index 1466d34d6e..6b87f5d00d 100644
 2.53.0
 
 
-From 2eb52d732347da7c583f9ac55033cb43b60465e6 Mon Sep 17 00:00:00 2001
+From 7d6e59337db363000a8a91844928de08e3ae9c36 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 6/7] fix(desktop): skip auto-update feed and mandatory policy
@@ -388,7 +388,7 @@ index be2f577e1b..6fc1ed1462 100644
 2.53.0
 
 
-From e874c3929c1fe12166e690381d5bedf84c638b75 Mon Sep 17 00:00:00 2001
+From daf35dc59557419640096f13b1c1cb2d4d583291 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
@@ -508,7 +508,7 @@ index 4ca61b9bdc..5807e22c97 100644
      if (preset !== 'test' && preset !== 'production') throw new Error('desktop package: preset must be test or production')
      const root = environment.DSH_PACKAGING_CONFIG_DIR
 diff --git a/apps/desktop/scripts/desktop-release-store.ts b/apps/desktop/scripts/desktop-release-store.ts
-index 1c9ff23951..79f47bd167 100644
+index c080272e1d..83ec26c4b9 100644
 --- a/apps/desktop/scripts/desktop-release-store.ts
 +++ b/apps/desktop/scripts/desktop-release-store.ts
 @@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({

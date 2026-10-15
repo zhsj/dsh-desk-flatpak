@@ -70,8 +70,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/deepseek-ai/deepseek-harness.git
-        tag: dsh-v0.2.1-alpha.3
-        commit: 2fbf4359b82fb94c03dcce0b831660d87f12ea5c
+        tag: dsh-v0.2.1-alpha.4
+        commit: 86a402200d95fecef4529d969836f1fe13c6cb0d
         dest: deepseek-harness
       - type: patch
         paths:
