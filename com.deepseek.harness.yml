@@ -20,6 +20,14 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
 
+add-extensions:
+  com.deepseek.harness.tools:
+    directory: tools
+    subdirectories: true
+    version: 'stable'
+    add-ld-path: lib
+    no-autodownload: true
+
 modules:
   - name: libvips
     buildsystem: meson
@@ -103,6 +111,8 @@ modules:
 
         install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/com.deepseek.harness.metainfo.xml" \
           /app/share/metainfo/com.deepseek.harness.metainfo.xml
+
+        mkdir -p /app/tools
     sources:
       - type: file
         path: deepseek-harness.sh
