@@ -24,7 +24,7 @@ add-extensions:
   com.deepseek.harness.tools:
     directory: tools
     subdirectories: true
-    version: 'stable'
+    version: "stable"
     add-ld-path: lib
     no-autodownload: true
 
@@ -46,7 +46,7 @@ modules:
         sha256: 256b7d6f8c973bb53b20cff5171c7117d6b35d3aa4e72d22cb906f4fe1e2c890
       - type: shell
         commands:
-        - patch -p1 < libvips-cpp-soversion.patch
+          - patch -p1 < libvips-cpp-soversion.patch
 
   - name: dsh-desktop
     buildsystem: simple

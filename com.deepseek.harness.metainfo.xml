@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <component type="desktop-application">
   <id>com.deepseek.harness</id>
   <name>DeepSeek Harness</name>
@@ -14,7 +14,10 @@
     <category>Development</category>
   </categories>
   <releases>
-    <release version="0.2.1-alpha.2" date="2026-10-09"/>
-    <release version="0.2.1-alpha.1" date="2026-10-03"/>
+    <release version="0.2.1-alpha.5" date="2026-10-16" />
+    <release version="0.2.1-alpha.4" date="2026-10-15" />
+    <release version="0.2.1-alpha.3" date="2026-10-14" />
+    <release version="0.2.1-alpha.2" date="2026-10-09" />
+    <release version="0.2.1-alpha.1" date="2026-10-03" />
   </releases>
 </component>
