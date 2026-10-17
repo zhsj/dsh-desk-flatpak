@@ -52,23 +52,33 @@ modules:
     buildsystem: simple
     build-options:
       no-debuginfo: true
-      build-args:
-        - --share=network
+      # build-args:
+      #   - --share=network
       append-path: /usr/lib/sdk/node24/bin:/run/build/dsh-desktop/node_modules/.bin
       env:
         DSH_DESKTOP_TARGET_PLATFORM: linux
         DSH_DESKTOP_TARGET_ARCH: x64
-        ELECTRON_BUILDER_CACHE: /run/build/dsh-desktop/.electron-builder-cache
-        ELECTRON_CACHE: /run/build/dsh-desktop/.electron-cache
+        XDG_CACHE_HOME: /run/build/dsh-desktop/flatpak-node/cache
+        PNPM_CONFIG_STORE_DIR: /run/build/dsh-desktop/flatpak-node/pnpm-store
+        PNPM_CONFIG_MINIMUM_RELEASE_AGE: "0"
+        PNPM_CONFIG_TRUST_POLICY: never
     build-commands:
       - |
         set -eux
 
-        npm install pnpm@11.28.5
+        npm install ${FLATPAK_BUILDER_BUILDDIR}/flatpak-node/pnpm-tarballs/pnpm-*.tgz
 
         cd deepseek-harness
 
-        pnpm install --frozen-lockfile
+        pnpm install --frozen-lockfile --offline
+
+        mkdir -p apps/desktop/.desktop-build
+        ln -srf ${FLATPAK_BUILDER_BUILDDIR}/assets apps/desktop/.desktop-build/downloads
+        for d in ${XDG_CACHE_HOME}/electron/*/; do
+          n=$(basename "$d")
+          [ ${#n} -eq 64 ] && ln -srf "$d" "${FLATPAK_BUILDER_BUILDDIR}/assets/$n"
+        done
+
         pnpm --filter @deepseek-ai/dsh-desktop run package:dir
 
         mkdir -p /app/main
@@ -91,6 +101,12 @@ modules:
         path: env
         dest-filename: .env.linux
         dest: deepseek-harness/apps/desktop
+      - type: file
+        path: dsh-runtime-lock.yaml
+        dest: deepseek-harness/apps/desktop
+      - generated/node-sources.json
+      - generated/dsh-sources.json
+      - generated/runtime-sources.json
 
   - name: desktop-integration
     buildsystem: simple

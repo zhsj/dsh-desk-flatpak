@@ -1,7 +1,7 @@
 From 1cd363afe143f0cb238d815239d5a1c9f78afda2 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/7] fix(desktop): hotfix for libreoffice-kit and sharp
+Subject: [PATCH 1/8] fix(desktop): hotfix for libreoffice-kit and sharp
  package
 
 Assisted-by: Trae:DeepSeek-V4-Pro
@@ -102,7 +102,7 @@ index 9de39d3ff2..d2e2163347 100644
 From 434081f45bdc45518b1fb137e60f33f379fd8cdd Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
-Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
+Subject: [PATCH 2/8] fix(desktop): make the landlock sandbox work from the
  packaged app
 
 The ASAR archive stays read-only and Electron resolves ASAR paths only for
@@ -160,7 +160,7 @@ index 45028746ff..dd71524623 100644
 From 2d6cc39ad0b322a0fd3cb5d90311ad1bd60fd681 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
-Subject: [PATCH 3/7] fix(desktop): hide 'Check for Updates' menu on Linux
+Subject: [PATCH 3/8] fix(desktop): hide 'Check for Updates' menu on Linux
 
 Flatpak applications are updated through the system package manager
 and have no need for built-in self-update functionality.
@@ -190,7 +190,7 @@ index 2afdfd7194..26cfbea715 100644
 From 655b69bd5c09a1bbce540eeeb130bbad5b7f0bcd Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
-Subject: [PATCH 4/7] feat(desktop): enable hidden titlebar with overlay for
+Subject: [PATCH 4/8] feat(desktop): enable hidden titlebar with overlay for
  Linux desktop
 
 Apply Windows-style titleBarStyle 'hidden' with titleBarOverlay
@@ -268,7 +268,7 @@ index d9a8f3103b..463447978a 100644
 From b4d68d427902bf4338095ff359d7dcada33e7841 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
-Subject: [PATCH 5/7] feat(desktop): enable system tray icon on Linux
+Subject: [PATCH 5/8] feat(desktop): enable system tray icon on Linux
 
 Extend the DesktopTray from Windows-only to all non-macOS platforms so
 the tray icon is always present on Linux as well.  Use icon.png for
@@ -311,7 +311,7 @@ index 1466d34d6e..6b87f5d00d 100644
 From aef2afe42ce2b645fa5466c749f807827d476b3e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 6/7] fix(desktop): skip auto-update feed and mandatory policy
+Subject: [PATCH 6/8] fix(desktop): skip auto-update feed and mandatory policy
  for linux
 
 Linux ships unsigned with no auto-update feed. Automatically mark builds as
@@ -391,7 +391,7 @@ index be2f577e1b..6fc1ed1462 100644
 From cc232716bb1319cbd4b1e23529907bf20f2cb063 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
-Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
+Subject: [PATCH 7/8] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: Trae:DeepSeek-V4-Pro
 ---
@@ -763,6 +763,100 @@ index ba647d76ac..ef0faf80c1 100644
      expect(() => resolveDesktopPackageTarget('win-x64', 'darwin', 'arm64')).toThrow(/Windows x64/u)
      expect(() => resolveDesktopPackageTarget('mac-arm64', 'darwin', 'x64')).toThrow(/Apple Silicon/u)
      expect(() => resolveDesktopPackageTarget('mac-arm64', 'linux', 'arm64')).toThrow(/macOS/u)
+-- 
+2.53.0
+
+
+From cc5236732f11127691cb936aa575afe09cdd0aa2 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Fri, 9 Oct 2026 16:45:36 +0800
+Subject: [PATCH 8/8] feat(desktop): skip network access for Flatpak offline
+ build
+
+- Set unsafelyDisableChecksums to avoid @electron/get SHASUMS256.txt download
+- Reuse pre-generated dsh-runtime-lock.yaml to skip pnpm --lockfile-only
+- Share pnpm store and add --offline for production install
+- Copy pnpm-lock.yaml into DSH_OUTPUT_ROOT and unpack from ASAR
+
+Assisted-by: Trae:DeepSeek-V4-Pro
+---
+ apps/desktop/scripts/electron-builder-config.mjs | 3 ++-
+ apps/desktop/scripts/prepare-dsh.ts              | 9 ++++++---
+ apps/desktop/scripts/prepare-runtime.ts          | 2 +-
+ 3 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index 4014baa13a..491370a761 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -75,7 +75,8 @@ export function createElectronBuilderConfig(
+   let dshDestination
+   let windowsCode = []
+   const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/bin/landlock-run', '**/@vscode/ripgrep-*/bin/rg',
+-    `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`]
++    `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`,
++    '**/dsh/pnpm-lock.yaml']
+   const windowsSigner = packagesWindows && !unsigned
+     ? createWindowsTokenSigner({
+         certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
+diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
+index a98bc5a07e..877fa1ceb8 100644
+--- a/apps/desktop/scripts/prepare-dsh.ts
++++ b/apps/desktop/scripts/prepare-dsh.ts
+@@ -41,7 +41,7 @@ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const BUILD_PATHS = resolveDesktopTargetBuildPaths()
+ const DSH_OUTPUT_ROOT = BUILD_PATHS.dsh
+ const BUILD_ROOT = mkdtempSync(join(tmpdir(), 'dsh-desktop-runtime-'))
+-const STORE_ROOT = join(BUILD_ROOT, 'store')
++const STORE_ROOT = process.env.PNPM_CONFIG_STORE_DIR ?? join(BUILD_ROOT, 'store')
+ const RUNTIME_ROOT = BUILD_PATHS.runtime
+ const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
+ const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
+@@ -124,19 +124,21 @@ async function main(): Promise<void> {
+       mkdirSync(STORE_ROOT, { recursive: true })
+     })
+     const release = desktopRelease()
++    const hasSavedLockfile = existsSync(join(APP_ROOT, 'dsh-runtime-lock.yaml'))
+     const patches = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:stage-packages', async () => {
+       copyFileSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGE_SET_FILE), join(BUILD_ROOT, DESKTOP_PACKAGE_SET_FILE))
+       cpSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGES_DIR), join(BUILD_ROOT, DESKTOP_PACKAGES_DIR), { recursive: true })
+       createRuntimeProjectMetadata(BUILD_ROOT, release)
++      if (hasSavedLockfile) copyFileSync(join(APP_ROOT, 'dsh-runtime-lock.yaml'), join(BUILD_ROOT, 'pnpm-lock.yaml'))
+       return prepareRuntimePatches(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
+     })
+-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
++    if (!hasSavedLockfile) await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
+     verifyRuntimePatches(BUILD_ROOT, patches)
+     verifyDesktopCoreLockfile(
+       readFileSync(join(BUILD_ROOT, 'pnpm-lock.yaml'), 'utf8'),
+       readDesktopCorePackageSet(BUILD_ROOT, release.version),
+     )
+-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile']))
++    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile', ...(hasSavedLockfile ? ['--offline'] : [])]))
+     const packageSet = readDesktopCorePackageSet(BUILD_ROOT, release.version)
+     const targetName = resolveDesktopBuildTarget()
+     const target = { platform: process.platform, arch: desktopTargetPlatform(targetName).arch }
+@@ -154,6 +156,7 @@ async function main(): Promise<void> {
+       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
+       dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
+     }, undefined, 2)}\n`)
++    copyFileSync(join(BUILD_ROOT, 'pnpm-lock.yaml'), join(DSH_OUTPUT_ROOT, 'pnpm-lock.yaml'))
+     // Electron's ASAR filesystem defeats the LibreOfficeKit native-engine probe, which
+     // must fail here for Linux to fall back to the bundled WASM engine.
+     if (target.platform === 'linux') {
+diff --git a/apps/desktop/scripts/prepare-runtime.ts b/apps/desktop/scripts/prepare-runtime.ts
+index cbe5debb7a..1951c71bb8 100644
+--- a/apps/desktop/scripts/prepare-runtime.ts
++++ b/apps/desktop/scripts/prepare-runtime.ts
+@@ -24,7 +24,7 @@ async function prepareElectron({ platform, arch }: DesktopTarget): Promise<strin
+   const require = createRequire(import.meta.url)
+   const { version } = require('electron/package.json') as { version: string }
+   const archive = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'download:electron',
+-    () => downloadArtifact({ version, platform, arch, artifactName: 'electron', cacheRoot: BUILD_PATHS.downloads }))
++    () => downloadArtifact({ version, platform, arch, artifactName: 'electron', cacheRoot: BUILD_PATHS.downloads, unsafelyDisableChecksums: true }))
+   rmSync(BUILD_PATHS.electron, { recursive: true, force: true })
+   await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'extract:electron', () => extractZip(archive, { dir: BUILD_PATHS.electron }))
+   const executable = join(BUILD_PATHS.electron, platform === 'win32' ? 'electron.exe'
 -- 
 2.53.0
 
