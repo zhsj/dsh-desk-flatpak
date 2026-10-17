@@ -1,4 +1,4 @@
-From 7420286d7800638ae1029173502e197deb5ae4e8 Mon Sep 17 00:00:00 2001
+From 6772d73b4de2a66cd93278c265403f65607e6cb2 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/7] fix(desktop): hotfix for libreoffice-kit and sharp
@@ -99,7 +99,7 @@ index 9de39d3ff2..d2e2163347 100644
 2.53.0
 
 
-From b9038aecdc645692fead9adb67478aa1e5859469 Mon Sep 17 00:00:00 2001
+From 64298b4386a297c995b686132ea1d5fb8b358aa4 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
@@ -157,7 +157,7 @@ index 45028746ff..dd71524623 100644
 2.53.0
 
 
-From d2483d2d9e40c30b7b0d7532c9e71fc5714a6b6e Mon Sep 17 00:00:00 2001
+From 832c3d785417ba9b433a053288df74e5c95643a3 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 3/7] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -187,7 +187,7 @@ index 2afdfd7194..26cfbea715 100644
 2.53.0
 
 
-From 3aa9eb66534572bb5c1af5fa5bcfd49f5c17ec33 Mon Sep 17 00:00:00 2001
+From 4fe689aaaed8a2a0a107910b4077c93f20aac359 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 4/7] feat(desktop): enable hidden titlebar with overlay for
@@ -265,7 +265,7 @@ index d9a8f3103b..463447978a 100644
 2.53.0
 
 
-From 53778d0e483d95f7b57ae1530e4c8c24b3a7fdf3 Mon Sep 17 00:00:00 2001
+From 6d0e173b1c7f9a75ecf25abe1f7ae02b56a9e51e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
 Subject: [PATCH 5/7] feat(desktop): enable system tray icon on Linux
@@ -308,7 +308,7 @@ index 1466d34d6e..6b87f5d00d 100644
 2.53.0
 
 
-From 526ea0f1854c6a7f6f9a02f5a5745c5e40fb0126 Mon Sep 17 00:00:00 2001
+From 176eea21e1e56558714ebb7182632829a3c5bea0 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 6/7] fix(desktop): skip auto-update feed and mandatory policy
@@ -388,7 +388,7 @@ index be2f577e1b..6fc1ed1462 100644
 2.53.0
 
 
-From d673bc1874adcbca8506c7078bc176f953965cd7 Mon Sep 17 00:00:00 2001
+From ddefdd60cac713ed75d505edeb748e145d943872 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
