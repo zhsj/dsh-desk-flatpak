@@ -1,4 +1,4 @@
-From 8f660fa9c168ff36a676b867dac8e61b3d4873a6 Mon Sep 17 00:00:00 2001
+From 62ce019d00513238785a09bcbaeae66129207ba1 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/7] fix(desktop): hotfix for libreoffice-kit and sharp
@@ -99,7 +99,7 @@ index a069888036..97eb069f85 100644
 2.53.0
 
 
-From 26a00ee5ccba5e12e66db2a017f1b423f398607a Mon Sep 17 00:00:00 2001
+From 212932e356cb0f42c9d801fad387e4b6ceadc237 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
@@ -157,7 +157,7 @@ index acf4b4e738..330fd0233a 100644
 2.53.0
 
 
-From 87e77cbb00f9ece4c2be851aa38849a3d91b08ae Mon Sep 17 00:00:00 2001
+From 30bd696f5d7f2e862e8aa0125027e4912eb0baff Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 3/7] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -171,10 +171,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 4770fe83bf..caf5e56dbf 100644
+index d8d0e30c4c..3e893604b4 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1055,7 +1055,7 @@ async function main(): Promise<void> {
+@@ -1057,7 +1057,7 @@ async function main(): Promise<void> {
          click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
        : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
      { type: 'separator' },
@@ -182,12 +182,12 @@ index 4770fe83bf..caf5e56dbf 100644
 +    ...(process.platform !== 'linux' ? [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }] : []),
      ...process.platform === 'darwin' || process.platform === 'win32'
        ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
-     ...development ? [
+     { type: 'separator' },
 -- 
 2.53.0
 
 
-From 4a674b9e715df795b898f203dc8aded1bf463ade Mon Sep 17 00:00:00 2001
+From 785af6ea233910f3e56e1d58dc12c11df81cc32f Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 4/7] feat(desktop): enable hidden titlebar with overlay for
@@ -204,10 +204,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index caf5e56dbf..def34abea8 100644
+index 3e893604b4..46ec67b9a8 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -262,7 +262,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -263,7 +263,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      minWidth: 520,
      minHeight: 600,
      show,
@@ -216,7 +216,7 @@ index caf5e56dbf..def34abea8 100644
        titleBarStyle: 'hidden' as const,
        titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
          symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
-@@ -292,7 +292,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -293,7 +293,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
      return { action: 'deny' }
    })
@@ -225,7 +225,7 @@ index caf5e56dbf..def34abea8 100644
      // Fullscreen hides native window controls; overlays drop their caption clearance.
      const sendFullscreen = (): void => {
        if (!window.isDestroyed()) window.webContents.send(DESKTOP_IPC.windowFullscreen, window.isFullScreen())
-@@ -1109,7 +1109,7 @@ async function main(): Promise<void> {
+@@ -1114,7 +1114,7 @@ async function main(): Promise<void> {
      ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
    })
  
@@ -251,7 +251,7 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From 0bad9e793fa42f2c46b8772ee7e6c09fb4f289bb Mon Sep 17 00:00:00 2001
+From 39952b296158350f892bc0c69b23971c9264349a Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
 Subject: [PATCH 5/7] feat(desktop): enable system tray icon on Linux
@@ -268,10 +268,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index def34abea8..d9ff6dd40d 100644
+index 46ec67b9a8..a5a5469b42 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1084,15 +1084,16 @@ async function main(): Promise<void> {
+@@ -1089,15 +1089,16 @@ async function main(): Promise<void> {
      tray?.relabel()
    }
    refreshApplicationMenu()
@@ -295,7 +295,7 @@ index def34abea8..d9ff6dd40d 100644
 2.53.0
 
 
-From 0ef31c72ec8456c97314951a7058b625613cccf4 Mon Sep 17 00:00:00 2001
+From 8bf39e2b2e25dcdd246afd31442b7ef3712322de Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 6/7] fix(desktop): skip auto-update feed and mandatory policy
@@ -355,7 +355,7 @@ index b6bc6efb63..2b97565ec6 100644
 2.53.0
 
 
-From ebcafeacc6d08f021cb4653842b2fa3ef500bba1 Mon Sep 17 00:00:00 2001
+From 47d5b179991485ffbcf6efe19f9d62ff29b0d7c3 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
