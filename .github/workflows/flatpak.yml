@@ -32,5 +32,4 @@ jobs:
       remote-name: dsh
       image-deltas: true
       delta-back: 1
-      upload-bundle: ${{ github.event_name != 'push' }}
       dry-run: ${{ github.event_name != 'push' }}

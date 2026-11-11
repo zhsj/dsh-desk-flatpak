@@ -1,63 +1,19 @@
-From 4add9a296bde2b21b3eb7214b6a8b1282bdda020 Mon Sep 17 00:00:00 2001
+From 8b9b129fa0c9a7a841a80f8584f3530d48538a31 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/7] fix(desktop): hotfix for libreoffice-kit and sharp
- package
+Subject: [PATCH 1/8] fix(desktop): drop the linux libvips copies bundled with
+ sharp
 
-Assisted-by: Trae:DeepSeek-V4-Pro
+The Flatpak runtime provides libvips, so the copies sharp ships for Linux
+would only shadow the runtime one.
+
+Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
 ---
- .../scripts/linux-hotfix-libreoffice-kit.ts   | 39 +++++++++++++++++++
- apps/desktop/scripts/prepare-dsh.ts           | 14 ++++++-
- 2 files changed, 52 insertions(+), 1 deletion(-)
- create mode 100644 apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
+ apps/desktop/scripts/prepare-dsh.ts | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
 
-diff --git a/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts b/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
-new file mode 100644
-index 0000000000..9bc75195ed
---- /dev/null
-+++ b/apps/desktop/scripts/linux-hotfix-libreoffice-kit.ts
-@@ -0,0 +1,39 @@
-+/**
-+ * Post-install adjustments the Linux release needs because neither Electron nor the
-+ * published dependency set has ever been qualified against it.
-+ *
-+ * The Windows and macOS releases never needed this adjustment, so they keep the
-+ * registry packages exactly as installed.
-+ *
-+ * LibreOfficeKit decides whether an optional native engine package is installed by
-+ * probing `lstatSync(path, { throwIfNoEntry: false })`. Electron's ASAR filesystem
-+ * returns `null` rather than `undefined` for a missing entry, so the probe reports
-+ * every name as installed and Linux can never fall back to the bundled WASM engine:
-+ * conversion fails with "installed package is incomplete" instead.
-+ */
-+
-+import { readFileSync, writeFileSync } from 'node:fs'
-+import { join } from 'node:path'
-+
-+/** Engine that resolves the optional native LibreOfficeKit package. */
-+const OFFICE_ENGINE_PACKAGE = '@deepseek-ai/libreoffice-kit'
-+const OFFICE_ENGINE_ENTRY = 'lib/index.js'
-+
-+/** ASAR-insensitive existence probe that replaces the published one. */
-+const OFFICE_ENGINE_EXISTENCE_CHECK = 'lstatSync(join(directory, name), { throwIfNoEntry: false }) !== void 0'
-+const OFFICE_ENGINE_EXISTENCE_FIX = 'Boolean(lstatSync(join(directory, name), { throwIfNoEntry: false }))'
-+
-+/**
-+ * Make the LibreOfficeKit engine probe work inside an ASAR archive.
-+ * @param root - Prepared dsh tree that becomes `resources/app.asar/dsh`.
-+ * @throws When the installed engine no longer contains the probe this fixes.
-+ */
-+export function fixLibreOfficeEngineFallback(root: string): void {
-+  const path = join(root, 'node_modules', ...OFFICE_ENGINE_PACKAGE.split('/'), OFFICE_ENGINE_ENTRY)
-+  const source = readFileSync(path, 'utf8')
-+  const occurrences = source.split(OFFICE_ENGINE_EXISTENCE_CHECK).length - 1
-+  if (occurrences !== 1) {
-+    throw new Error(`desktop runtime: ${OFFICE_ENGINE_PACKAGE} no longer contains the installed-package probe this build patches`)
-+  }
-+  writeFileSync(path, source.replace(OFFICE_ENGINE_EXISTENCE_CHECK, OFFICE_ENGINE_EXISTENCE_FIX))
-+}
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index a069888036..97eb069f85 100644
+index a069888036..b20d491c7e 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
 @@ -4,7 +4,7 @@ import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-dir
@@ -69,24 +25,13 @@ index a069888036..97eb069f85 100644
  import { tmpdir } from 'node:os'
  import { delimiter, join, relative, resolve } from 'node:path'
  import { desktopNodeEnvironment } from '../src/node-environment.ts'
-@@ -36,6 +36,8 @@ import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetB
- import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
- import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
- 
-+import { fixLibreOfficeEngineFallback } from './linux-hotfix-libreoffice-kit.ts'
-+
- const APP_ROOT = resolve(import.meta.dirname, '..')
- const BUILD_PATHS = resolveDesktopTargetBuildPaths()
- const DSH_OUTPUT_ROOT = BUILD_PATHS.dsh
-@@ -155,6 +157,16 @@ async function main(): Promise<void> {
+@@ -155,6 +155,14 @@ async function main(): Promise<void> {
        name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
        dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
      }, undefined, 2)}\n`)
-+    // Electron's ASAR filesystem defeats the LibreOfficeKit native-engine probe, which
-+    // must fail here for Linux to fall back to the bundled WASM engine.
++    // The Flatpak runtime provides libvips; drop the copies sharp would load instead.
 +    if (target.platform === 'linux') {
 +      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:linux-adjustments', async () => {
-+        fixLibreOfficeEngineFallback(DSH_OUTPUT_ROOT)
 +        for (const name of readdirSync(join(DSH_OUTPUT_ROOT, 'node_modules', '@img'))) {
 +          if (name.startsWith('sharp-libvips-linux')) rmSync(join(DSH_OUTPUT_ROOT, 'node_modules', '@img', name), { recursive: true, force: true })
 +        }
@@ -99,10 +44,41 @@ index a069888036..97eb069f85 100644
 2.53.0
 
 
-From 56d46e5b2077040f5e3d9e622a797d00761419d7 Mon Sep 17 00:00:00 2001
+From dea759451e713cc05e46433b990e81294628802a Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Thu, 12 Nov 2026 02:56:56 +0800
+Subject: [PATCH 2/8] fix(office): treat ASAR-missing engine paths as absent
+
+Electron's ASAR filesystem returns null instead of undefined for a missing
+entry, so the installed-package probe reported absent native engines as
+installed and blocked the WASM fallback on Linux.
+
+Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
+---
+ packages/document/office-kit/src/locate.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/packages/document/office-kit/src/locate.ts b/packages/document/office-kit/src/locate.ts
+index 827ecfe4e6..7af70359f8 100644
+--- a/packages/document/office-kit/src/locate.ts
++++ b/packages/document/office-kit/src/locate.ts
+@@ -61,7 +61,7 @@ export function createEnginePackageResolver(kitEntry: string | URL): EnginePacka
+     } catch (error) {
+       if (error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
+         const installed = (fromKit.resolve.paths(name) ?? []).some(directory =>
+-          lstatSync(join(directory, name), { throwIfNoEntry: false }) !== undefined,
++          Boolean(lstatSync(join(directory, name), { throwIfNoEntry: false })),
+         )
+         if (installed) throw new Error(`Installed LibreOfficeKit package is incomplete: ${name}. Reinstall the package.`, { cause: error })
+       }
+-- 
+2.53.0
+
+
+From a9a9c521e1eb9ba8635bbe47b0117df8a235b8a4 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
-Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
+Subject: [PATCH 3/8] fix(desktop): make the landlock sandbox work from the
  packaged app
 
 The ASAR archive stays read-only and Electron resolves ASAR paths only for
@@ -117,28 +93,27 @@ sandbox-local provider found no usable backend inside the Flatpak bundle:
 
 Assisted-by: Trae:DeepSeek-V4-Pro
 ---
- apps/desktop/scripts/electron-builder-config.mjs | 2 +-
+ apps/desktop/scripts/electron-builder-config.mjs | 1 +
  packages/sandbox/sandbox-local/src/index.ts      | 8 +++++++-
- 2 files changed, 8 insertions(+), 2 deletions(-)
+ 2 files changed, 8 insertions(+), 1 deletion(-)
 
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index cf0c19e895..4afb0f8782 100644
+index d5522e3da9..c64f078f57 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -75,7 +75,7 @@ export function createElectronBuilderConfig(
-   let primaryRuntimeDestination
-   let dshDestination
+@@ -77,6 +77,7 @@ export function createElectronBuilderConfig(
    let windowsCode = []
--  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
-+  const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/bin/landlock-run', '**/@vscode/ripgrep-*/bin/rg',
-     `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`]
-   const windowsSigner = packagesWindows && !unsigned
-     ? createWindowsTokenSigner({
+   const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
+     `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`,
++    '**/bin/landlock-run',
+     // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
+     // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
+     '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
 diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
-index acf4b4e738..330fd0233a 100644
+index af8dae004f..8d68e34c6c 100644
 --- a/packages/sandbox/sandbox-local/src/index.ts
 +++ b/packages/sandbox/sandbox-local/src/index.ts
-@@ -555,7 +555,13 @@ export class LocalSandboxProvider extends SandboxProvider {
+@@ -595,7 +595,13 @@ export class LocalSandboxProvider extends SandboxProvider {
  
    /** The Landlock launcher to probe and exec (test hook over the resolved one). */
    private landlockLauncher(): string {
@@ -157,10 +132,10 @@ index acf4b4e738..330fd0233a 100644
 2.53.0
 
 
-From 4947adbbefbabb4b2f1de6350089fde6f706e2bd Mon Sep 17 00:00:00 2001
+From b11c3df61bba9d73508c914b18981ffa6aead9e3 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
-Subject: [PATCH 3/7] fix(desktop): hide 'Check for Updates' menu on Linux
+Subject: [PATCH 4/8] fix(desktop): hide 'Check for Updates' menu on Linux
 
 Flatpak applications are updated through the system package manager
 and have no need for built-in self-update functionality.
@@ -171,10 +146,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index d8d0e30c4c..3e893604b4 100644
+index 8f9cd823a5..226b3ca79e 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1057,7 +1057,7 @@ async function main(): Promise<void> {
+@@ -1208,7 +1208,7 @@ async function main(): Promise<void> {
          click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
        : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
      { type: 'separator' },
@@ -187,10 +162,10 @@ index d8d0e30c4c..3e893604b4 100644
 2.53.0
 
 
-From a4f6f7a367367923faf9e952f75432ba2487ab02 Mon Sep 17 00:00:00 2001
+From 3a53b63fa208856db16431da7904a574a7f43172 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
-Subject: [PATCH 4/7] feat(desktop): enable hidden titlebar with overlay for
+Subject: [PATCH 5/8] feat(desktop): enable hidden titlebar with overlay for
  Linux desktop
 
 Apply Windows-style titleBarStyle 'hidden' with titleBarOverlay
@@ -204,28 +179,28 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 3e893604b4..46ec67b9a8 100644
+index 226b3ca79e..78742ddd41 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -263,7 +263,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -268,7 +268,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      minWidth: 520,
      minHeight: 600,
      show,
 -    ...(process.platform === 'win32' && primary ? {
 +    ...(process.platform !== 'darwin' && primary ? {
+       backgroundColor: chromeFallbackFill(),
        titleBarStyle: 'hidden' as const,
        titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
-@@ -293,7 +293,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -299,7 +299,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
      return { action: 'deny' }
    })
 -  if (process.platform === 'darwin' || process.platform === 'win32') {
-+  if (process.platform !== 'linux') {
++  {
      // Fullscreen hides native window controls; overlays drop their caption clearance.
      const sendFullscreen = (): void => {
        if (!window.isDestroyed()) window.webContents.send(DESKTOP_IPC.windowFullscreen, window.isFullScreen())
-@@ -1114,7 +1114,7 @@ async function main(): Promise<void> {
+@@ -1265,7 +1265,7 @@ async function main(): Promise<void> {
      ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
    })
  
@@ -251,10 +226,10 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From cea6c3548d8c138691acaff4f5743e715a1c501c Mon Sep 17 00:00:00 2001
+From e0a309a34886af32f1a5f4acf9725db9cb58ad17 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
-Subject: [PATCH 5/7] feat(desktop): enable system tray icon on Linux
+Subject: [PATCH 6/8] feat(desktop): enable system tray icon on Linux
 
 Extend the DesktopTray from Windows-only to all non-macOS platforms so
 the tray icon is always present on Linux as well.  Use icon.png for
@@ -268,10 +243,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 46ec67b9a8..a5a5469b42 100644
+index 78742ddd41..d629220373 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1089,15 +1089,16 @@ async function main(): Promise<void> {
+@@ -1240,15 +1240,16 @@ async function main(): Promise<void> {
      tray?.relabel()
    }
    refreshApplicationMenu()
@@ -295,10 +270,10 @@ index 46ec67b9a8..a5a5469b42 100644
 2.53.0
 
 
-From d6d8ac034027999f1cef6469498746d4aada9fed Mon Sep 17 00:00:00 2001
+From c7a1b30e276b1d623931ab6298df8f381d8bb4d1 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 6/7] fix(desktop): skip auto-update feed and mandatory policy
+Subject: [PATCH 7/8] fix(desktop): skip auto-update feed and mandatory policy
  for linux
 
 Linux ships unsigned with no auto-update feed. Automatically mark builds as
@@ -313,10 +288,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  3 files changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
-index 27a7f92c7f..034e097b69 100644
+index 83e9dbbc0f..e01887a149 100644
 --- a/apps/desktop/scripts/desktop-package-environment.mjs
 +++ b/apps/desktop/scripts/desktop-package-environment.mjs
-@@ -156,6 +156,8 @@ export function validateDesktopPackageEnvironment(environment, target, options =
+@@ -121,6 +121,8 @@ export function validateDesktopPackageEnvironment(environment, target, options =
    resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
    resolveDesktopAppId(environment)
    resolveNpmRegistry(environment)
@@ -326,7 +301,7 @@ index 27a7f92c7f..034e097b69 100644
    if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
    else resolveWindowsPackageSettings(environment)
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index 4afb0f8782..43618830c5 100644
+index c64f078f57..2548e17d8b 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
 @@ -66,7 +66,7 @@ export function createElectronBuilderConfig(
@@ -355,12 +330,14 @@ index b6bc6efb63..2b97565ec6 100644
 2.53.0
 
 
-From 6e232c08ccb9f07dd745679d3c509389ecc49e9b Mon Sep 17 00:00:00 2001
+From 71903b1961373149c4571b2a6553e44f76f4451e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
-Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
+Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: Trae:DeepSeek-V4-Pro
+
+Assisted-by: CodeBuddy:Auto
 ---
  .../desktop-auto-update-environment.d.mts     |  2 +-
  .../desktop-auto-update-environment.mjs       |  2 +-
@@ -368,6 +345,7 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  apps/desktop/scripts/desktop-build-paths.mjs  |  3 ++-
  .../scripts/desktop-package-environment.d.mts |  4 ++--
  .../scripts/desktop-package-environment.mjs   |  2 +-
+ .../scripts/desktop-publish-targets.ts        |  2 +-
  apps/desktop/scripts/desktop-release-store.ts |  2 +-
  .../scripts/desktop-toolchain-preflight.ts    |  4 ++--
  apps/desktop/scripts/desktop-upload-plan.ts   |  1 +
@@ -376,10 +354,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  apps/desktop/scripts/prepare-dsh.ts           |  3 ++-
  apps/desktop/scripts/prepare-runtime.ts       |  5 +++--
  .../desktop/scripts/smoke-packaged-runtime.ts |  9 ++++++---
- 14 files changed, 42 insertions(+), 20 deletions(-)
+ 15 files changed, 43 insertions(+), 21 deletions(-)
 
 diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
-index 4d42b3dd1e..87b29deefc 100644
+index c58df5a048..f85721d22a 100644
 --- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
 +++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
 @@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -392,7 +370,7 @@ index 4d42b3dd1e..87b29deefc 100644
  /**
   * Name the fixed installer object shared by uploading and cache refresh.
 diff --git a/apps/desktop/scripts/desktop-auto-update-environment.mjs b/apps/desktop/scripts/desktop-auto-update-environment.mjs
-index 835beadd6d..cc31af4cde 100644
+index 24aaa0ea2c..79e328cfb7 100644
 --- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
 +++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
 @@ -33,7 +33,7 @@ const UPDATE_ENVIRONMENTS = {
@@ -460,10 +438,10 @@ index ec9da721f1..76c07e5e48 100644
    options?: { unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean },
  ): void
 diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
-index 034e097b69..d5a67c855e 100644
+index e01887a149..84d14d090a 100644
 --- a/apps/desktop/scripts/desktop-package-environment.mjs
 +++ b/apps/desktop/scripts/desktop-package-environment.mjs
-@@ -59,7 +59,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
+@@ -58,7 +58,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
      if (!['3', '7'].includes(zipCompression)) throw new Error('desktop package: workflow ZIP compression must be 3 or 7')
    }
    const preset = environment.DSH_PACKAGING_PRESET
@@ -472,12 +450,25 @@ index 034e097b69..d5a67c855e 100644
    if (preset !== undefined) {
      if (preset !== 'test' && preset !== 'production') throw new Error('desktop package: preset must be test or production')
      const root = environment.DSH_PACKAGING_CONFIG_DIR
+diff --git a/apps/desktop/scripts/desktop-publish-targets.ts b/apps/desktop/scripts/desktop-publish-targets.ts
+index 3270b99b25..2e8a271e64 100644
+--- a/apps/desktop/scripts/desktop-publish-targets.ts
++++ b/apps/desktop/scripts/desktop-publish-targets.ts
+@@ -8,7 +8,7 @@ export const desktopPackageWorkflows = {
+   'win-x64': '.github/workflows/windows-package.yml',
+ } as const
+ 
+-const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64'])
++const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
+ 
+ /** Machine labels are unique; a scalar target is shorthand for a one-element target list. */
+ export const desktopPublishRunnersSchema = z.record(z.string(), z.object({
 diff --git a/apps/desktop/scripts/desktop-release-store.ts b/apps/desktop/scripts/desktop-release-store.ts
-index c080272e1d..83ec26c4b9 100644
+index eb9d5457ff..377986091a 100644
 --- a/apps/desktop/scripts/desktop-release-store.ts
 +++ b/apps/desktop/scripts/desktop-release-store.ts
 @@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({
-   channel: z.enum(['nightly', 'latest']),
+   channel: z.enum(['nightly', 'stable']),
    runnerName: z.string().min(1),
    // Storage accepts every Desktop target; CI routing separately limits currently provisioned platforms.
 -  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64']),
@@ -508,7 +499,7 @@ index ff855cfd09..08c8dc1fca 100644
  ): Promise<void> {
    const failures = await probeDesktopToolchain(platform, environment)
 diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
-index 1461444fc6..d64534144f 100644
+index 39ff954bf5..b1805f8e27 100644
 --- a/apps/desktop/scripts/desktop-upload-plan.ts
 +++ b/apps/desktop/scripts/desktop-upload-plan.ts
 @@ -18,6 +18,7 @@ import { validateDesktopBuildVersion } from './desktop-build-version.mjs'
@@ -520,10 +511,10 @@ index 1461444fc6..d64534144f 100644
    'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
    'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index 43618830c5..abc023b3ce 100644
+index 2548e17d8b..fc8ebe1f3c 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -113,6 +113,7 @@ export function createElectronBuilderConfig(
+@@ -116,6 +116,7 @@ export function createElectronBuilderConfig(
        ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
        ...buildVersion === productVersion ? {} : { version: buildVersion },
        ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
@@ -531,7 +522,7 @@ index 43618830c5..abc023b3ce 100644
      },
      productName: 'DeepSeek Harness',
      // The default copyright uses author.name; this line names the product instead.
-@@ -254,6 +255,8 @@ export function createElectronBuilderConfig(
+@@ -257,6 +258,8 @@ export function createElectronBuilderConfig(
      },
      linux: {
        category: 'Development',
@@ -599,10 +590,10 @@ index 2b97565ec6..3de8557ea0 100644
      success = true
    } catch (error) {
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index 97eb069f85..b5fbb0c142 100644
+index b20d491c7e..c7923ffd0f 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
-@@ -46,7 +46,8 @@ const STORE_ROOT = BUILD_PATHS.pnpmStore
+@@ -44,7 +44,8 @@ const STORE_ROOT = BUILD_PATHS.pnpmStore
  const RUNTIME_ROOT = BUILD_PATHS.runtime
  const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
  const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
