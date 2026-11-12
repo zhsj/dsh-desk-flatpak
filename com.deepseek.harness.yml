@@ -17,7 +17,6 @@ finish-args:
   - --socket=pulseaudio
   - --device=dri
   - --env=GIT_EXEC_PATH=/app/libexec/git-core
-  - --env=DSH_LANDLOCK_LAUNCHER=/app/bin/landlock-run
   - --talk-name=org.kde.StatusNotifierWatcher
 
 add-extensions:
@@ -74,7 +73,6 @@ modules:
         mkdir -p /app/main
         APPDIR=apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked
         cp -a "${APPDIR}/." /app/main/
-        ln -srf "$(find /app/main/ -name landlock-run -executable -print -quit)" /app/bin/
     sources:
       - type: git
         url: https://github.com/deepseek-ai/deepseek-harness.git
