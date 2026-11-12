@@ -1,4 +1,4 @@
-From 8b9b129fa0c9a7a841a80f8584f3530d48538a31 Mon Sep 17 00:00:00 2001
+From db77898afa4a5b044c7933917a88670e6f544a4e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/8] fix(desktop): drop the linux libvips copies bundled with
@@ -44,7 +44,7 @@ index a069888036..b20d491c7e 100644
 2.53.0
 
 
-From dea759451e713cc05e46433b990e81294628802a Mon Sep 17 00:00:00 2001
+From 3b02cd054eb146bee6246afa0ef9dee1230752d5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 12 Nov 2026 02:56:56 +0800
 Subject: [PATCH 2/8] fix(office): treat ASAR-missing engine paths as absent
@@ -75,27 +75,30 @@ index 827ecfe4e6..7af70359f8 100644
 2.53.0
 
 
-From a9a9c521e1eb9ba8635bbe47b0117df8a235b8a4 Mon Sep 17 00:00:00 2001
+From 542a0ec6b5f8e2677ebaa2c7f427a53310dee663 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 3/8] fix(desktop): make the landlock sandbox work from the
  packaged app
 
-The ASAR archive stays read-only and Electron resolves ASAR paths only for
-execFile, not for the spawnSync the landlock probe uses, so the
+The ASAR archive stays read-only and Electron rewrites ASAR paths only for
+execFile/execFileSync, not for the spawnSync the landlock probe uses, so the
 sandbox-local provider found no usable backend inside the Flatpak bundle:
 
 - unpack **/bin/landlock-run from the archive so the launcher exists on
   the filesystem at all.
-- honor DSH_LANDLOCK_LAUNCHER ahead of the ASAR-path resolution, so a
-  deployment that copies the launcher outside the archive can point the
-  provider at it.
+- rewrite the resolved app.asar path to app.asar.unpacked in the provider,
+  the way the other unpacked native payloads (ripgrep, office-kit, cua-macos)
+  are located. An environment override would let the ambient environment
+  decide which binary confines a process, which the launcher package
+  forbids, and a redirected variable would silently turn the probe into a
+  fake "full" verdict.
 
-Assisted-by: Trae:DeepSeek-V4-Pro
+Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
 ---
  apps/desktop/scripts/electron-builder-config.mjs | 1 +
- packages/sandbox/sandbox-local/src/index.ts      | 8 +++++++-
- 2 files changed, 8 insertions(+), 1 deletion(-)
+ packages/sandbox/sandbox-local/src/index.ts      | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
 index d5522e3da9..c64f078f57 100644
@@ -110,21 +113,16 @@ index d5522e3da9..c64f078f57 100644
      // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
      '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
 diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
-index af8dae004f..8d68e34c6c 100644
+index af8dae004f..911290185f 100644
 --- a/packages/sandbox/sandbox-local/src/index.ts
 +++ b/packages/sandbox/sandbox-local/src/index.ts
-@@ -595,7 +595,13 @@ export class LocalSandboxProvider extends SandboxProvider {
+@@ -595,7 +595,8 @@ export class LocalSandboxProvider extends SandboxProvider {
  
    /** The Landlock launcher to probe and exec (test hook over the resolved one). */
    private landlockLauncher(): string {
 -    return this.internals.landlockLauncher ?? landlockLauncherPath()
 +    if (this.internals.landlockLauncher !== undefined) return this.internals.landlockLauncher
-+    // Electron's spawn/execFile handles ASAR paths only for execFile, not
-+    // for spawnSync (used by the probe below).  Flatpak deployments ship
-+    // a copy of the launcher outside the read-only ASAR archive so that
-+    // the probe and confine() can spawn it on a real filesystem path.
-+    if (process.env.DSH_LANDLOCK_LAUNCHER !== undefined) return process.env.DSH_LANDLOCK_LAUNCHER
-+    return landlockLauncherPath()
++    return landlockLauncherPath().replace('/app.asar/', '/app.asar.unpacked/')
    }
  
    /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
@@ -132,7 +130,7 @@ index af8dae004f..8d68e34c6c 100644
 2.53.0
 
 
-From b11c3df61bba9d73508c914b18981ffa6aead9e3 Mon Sep 17 00:00:00 2001
+From 8d63e12c5b2941f60292303da4ece283e9b7369e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 4/8] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -162,7 +160,7 @@ index 8f9cd823a5..226b3ca79e 100644
 2.53.0
 
 
-From 3a53b63fa208856db16431da7904a574a7f43172 Mon Sep 17 00:00:00 2001
+From a5ed9d07f1b1d6cf8bf541c7b92c00970baaed2e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 5/8] feat(desktop): enable hidden titlebar with overlay for
@@ -226,7 +224,7 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From e0a309a34886af32f1a5f4acf9725db9cb58ad17 Mon Sep 17 00:00:00 2001
+From ad7bd6449fbfdf46da8cb164854d927aadbc922c Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
 Subject: [PATCH 6/8] feat(desktop): enable system tray icon on Linux
@@ -270,7 +268,7 @@ index 78742ddd41..d629220373 100644
 2.53.0
 
 
-From c7a1b30e276b1d623931ab6298df8f381d8bb4d1 Mon Sep 17 00:00:00 2001
+From 7e3cd6878fbd80c319193a9ab9115c018698ff86 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 7/8] fix(desktop): skip auto-update feed and mandatory policy
@@ -330,12 +328,10 @@ index b6bc6efb63..2b97565ec6 100644
 2.53.0
 
 
-From 71903b1961373149c4571b2a6553e44f76f4451e Mon Sep 17 00:00:00 2001
+From e4c03302ba1522f765212aada2582d843a4b5c27 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
-
-Assisted-by: Trae:DeepSeek-V4-Pro
 
 Assisted-by: CodeBuddy:Auto
 ---
