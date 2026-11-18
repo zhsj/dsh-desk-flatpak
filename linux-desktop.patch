@@ -1,4 +1,4 @@
-From b39ba114cf05e324919c15c25fa9e244f5ac882d Mon Sep 17 00:00:00 2001
+From aee3654b2f2180ce6d8e8f082bdf44223edb12c5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/8] fix(desktop): drop the linux libvips copies bundled with
@@ -44,7 +44,7 @@ index a069888036..b20d491c7e 100644
 2.53.0
 
 
-From 05c8ff15317b528036df39a166b27b0a3a87e91b Mon Sep 17 00:00:00 2001
+From 6617cb34b6a0df7d19da6b41d66ef136ea4cc52f Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 12 Nov 2026 02:56:56 +0800
 Subject: [PATCH 2/8] fix(office): treat ASAR-missing engine paths as absent
@@ -75,7 +75,7 @@ index 827ecfe4e6..7af70359f8 100644
 2.53.0
 
 
-From 8d768a1af6513e351631850cbef66e922f8cf95a Mon Sep 17 00:00:00 2001
+From cf738b88bfed0f2740e187158ff896ff18e7e704 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 3/8] fix(desktop): make the landlock sandbox work from the
@@ -130,7 +130,7 @@ index af8dae004f..911290185f 100644
 2.53.0
 
 
-From b25646b7b2dd91f171375d30178b6bbc64175811 Mon Sep 17 00:00:00 2001
+From 2beb5d66b2bd5682f0e793fc5009d920d5490f9e Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 15:56:46 +0800
 Subject: [PATCH 4/8] fix(desktop): hide 'Check for Updates' menu on Linux
@@ -160,7 +160,7 @@ index 8f9cd823a5..226b3ca79e 100644
 2.53.0
 
 
-From 2e5b3a7f8fa4ac9e33d043f4eb35fecd81e958ee Mon Sep 17 00:00:00 2001
+From eb9615956098f2465cca33f8a89b318abf13a3e3 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
 Subject: [PATCH 5/8] feat(desktop): enable hidden titlebar with overlay for
@@ -224,7 +224,7 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From df31e823791a9f4ef0c096cdb7a8b48ef60868bf Mon Sep 17 00:00:00 2001
+From 6423158dbab0ac6cc911868931e91c2354cf419f Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
 Subject: [PATCH 6/8] feat(desktop): enable system tray icon on Linux
@@ -268,7 +268,7 @@ index 78742ddd41..d629220373 100644
 2.53.0
 
 
-From 08c201706c222e31b84d2dd1af65436eaaa23aa1 Mon Sep 17 00:00:00 2001
+From f923803dac544c689529c51dc0dc312569cc4f91 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
 Subject: [PATCH 7/8] fix(desktop): skip auto-update feed and mandatory policy
@@ -328,7 +328,7 @@ index b6bc6efb63..2b97565ec6 100644
 2.53.0
 
 
-From a11f7bf25fca1027c873c56ea97a04a8095185b6 Mon Sep 17 00:00:00 2001
+From 04c91b65c409b3609cfb25292fe3d0dbe71282d7 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
