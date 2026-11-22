@@ -1,4 +1,4 @@
-From aee3654b2f2180ce6d8e8f082bdf44223edb12c5 Mon Sep 17 00:00:00 2001
+From 206845cf64926ec59304e15672a6a57e28d8bcf6 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
 Subject: [PATCH 1/8] fix(desktop): drop the linux libvips copies bundled with
@@ -44,7 +44,7 @@ index a069888036..b20d491c7e 100644
 2.53.0
 
 
-From 6617cb34b6a0df7d19da6b41d66ef136ea4cc52f Mon Sep 17 00:00:00 2001
+From 2642ad3d0540496afddbbbbc288c8223b33137ed Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 12 Nov 2026 02:56:56 +0800
 Subject: [PATCH 2/8] fix(office): treat ASAR-missing engine paths as absent
@@ -75,7 +75,7 @@ index 827ecfe4e6..7af70359f8 100644
 2.53.0
 
 
-From cf738b88bfed0f2740e187158ff896ff18e7e704 Mon Sep 17 00:00:00 2001
+From 52d453fe14cba5f505d05252c705861090aba25d Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
 Subject: [PATCH 3/8] fix(desktop): make the landlock sandbox work from the
@@ -101,7 +101,7 @@ Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
  2 files changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index d5522e3da9..c64f078f57 100644
+index a777a0582e..0df6203051 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
 @@ -77,6 +77,7 @@ export function createElectronBuilderConfig(
@@ -111,7 +111,7 @@ index d5522e3da9..c64f078f57 100644
 +    '**/bin/landlock-run',
      // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
      // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
-     '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
+     '**/node_modules/@deepseek-ai/dsh-cua-macos/native/bin/**/*']
 diff --git a/packages/sandbox/sandbox-local/src/index.ts b/packages/sandbox/sandbox-local/src/index.ts
 index af8dae004f..911290185f 100644
 --- a/packages/sandbox/sandbox-local/src/index.ts
@@ -130,40 +130,10 @@ index af8dae004f..911290185f 100644
 2.53.0
 
 
-From 2beb5d66b2bd5682f0e793fc5009d920d5490f9e Mon Sep 17 00:00:00 2001
-From: Shengjing Zhu <i@zhsj.me>
-Date: Wed, 7 Oct 2026 15:56:46 +0800
-Subject: [PATCH 4/8] fix(desktop): hide 'Check for Updates' menu on Linux
-
-Flatpak applications are updated through the system package manager
-and have no need for built-in self-update functionality.
-
-Assisted-by: Trae:DeepSeek-V4-Pro
----
- apps/desktop/src/main.ts | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 8f9cd823a5..226b3ca79e 100644
---- a/apps/desktop/src/main.ts
-+++ b/apps/desktop/src/main.ts
-@@ -1208,7 +1208,7 @@ async function main(): Promise<void> {
-         click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
-       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
-     { type: 'separator' },
--    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
-+    ...(process.platform !== 'linux' ? [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }] : []),
-     ...process.platform === 'darwin' || process.platform === 'win32'
-       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
-     { type: 'separator' },
--- 
-2.53.0
-
-
-From eb9615956098f2465cca33f8a89b318abf13a3e3 Mon Sep 17 00:00:00 2001
+From dd8507e2aad77b137e596cfbd0b8468a8b3deeae Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
-Subject: [PATCH 5/8] feat(desktop): enable hidden titlebar with overlay for
+Subject: [PATCH 4/8] feat(desktop): enable hidden titlebar with overlay for
  Linux desktop
 
 Apply Windows-style titleBarStyle 'hidden' with titleBarOverlay
@@ -177,7 +147,7 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 226b3ca79e..78742ddd41 100644
+index 291ed08476..47da260ed5 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
 @@ -268,7 +268,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
@@ -198,7 +168,7 @@ index 226b3ca79e..78742ddd41 100644
      // Fullscreen hides native window controls; overlays drop their caption clearance.
      const sendFullscreen = (): void => {
        if (!window.isDestroyed()) window.webContents.send(DESKTOP_IPC.windowFullscreen, window.isFullScreen())
-@@ -1265,7 +1265,7 @@ async function main(): Promise<void> {
+@@ -1274,7 +1274,7 @@ async function main(): Promise<void> {
      ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
    })
  
@@ -224,10 +194,10 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From 6423158dbab0ac6cc911868931e91c2354cf419f Mon Sep 17 00:00:00 2001
+From 74377f230b0545784e4faabd4fff2d4c76b823a1 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
-Subject: [PATCH 6/8] feat(desktop): enable system tray icon on Linux
+Subject: [PATCH 5/8] feat(desktop): enable system tray icon on Linux
 
 Extend the DesktopTray from Windows-only to all non-macOS platforms so
 the tray icon is always present on Linux as well.  Use icon.png for
@@ -241,10 +211,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 78742ddd41..d629220373 100644
+index 47da260ed5..ce77f700d3 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1240,15 +1240,16 @@ async function main(): Promise<void> {
+@@ -1249,15 +1249,16 @@ async function main(): Promise<void> {
      tray?.relabel()
    }
    refreshApplicationMenu()
@@ -268,10 +238,10 @@ index 78742ddd41..d629220373 100644
 2.53.0
 
 
-From f923803dac544c689529c51dc0dc312569cc4f91 Mon Sep 17 00:00:00 2001
+From 724bd61cc0d1767e11d38715d349ba902edfc288 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 7/8] fix(desktop): skip auto-update feed and mandatory policy
+Subject: [PATCH 6/8] fix(desktop): skip auto-update feed and mandatory policy
  for linux
 
 Linux ships unsigned with no auto-update feed. Automatically mark builds as
@@ -286,7 +256,7 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  3 files changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
-index 83e9dbbc0f..e01887a149 100644
+index d301ac4b31..274722681e 100644
 --- a/apps/desktop/scripts/desktop-package-environment.mjs
 +++ b/apps/desktop/scripts/desktop-package-environment.mjs
 @@ -121,6 +121,8 @@ export function validateDesktopPackageEnvironment(environment, target, options =
@@ -299,7 +269,7 @@ index 83e9dbbc0f..e01887a149 100644
    if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
    else resolveWindowsPackageSettings(environment)
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index c64f078f57..2548e17d8b 100644
+index 0df6203051..d7c52936ab 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
 @@ -66,7 +66,7 @@ export function createElectronBuilderConfig(
@@ -312,7 +282,7 @@ index c64f078f57..2548e17d8b 100644
    const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
    if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
 diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
-index b6bc6efb63..2b97565ec6 100644
+index ea244526d5..f3e8c07037 100644
 --- a/apps/desktop/scripts/package-target.ts
 +++ b/apps/desktop/scripts/package-target.ts
 @@ -250,7 +250,7 @@ export function parseDesktopPackageInvocation(
@@ -328,21 +298,449 @@ index b6bc6efb63..2b97565ec6 100644
 2.53.0
 
 
-From 04c91b65c409b3609cfb25292fe3d0dbe71282d7 Mon Sep 17 00:00:00 2001
+From d09c575d2767e4cb11ee74a3b2e3d74f6ef27f1e Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <i@zhsj.me>
+Date: Fri, 20 Nov 2026 04:40:45 +0800
+Subject: [PATCH 7/8] feat(desktop): check Flatpak updates through the Flatpak
+ portal
+
+Linux ships without an update feed, so the check prompt had nothing to
+query. Watch org.freedesktop.portal.Flatpak.CreateUpdateMonitor instead
+and tell the user to install the update with their software center or
+flatpak update: the sandbox never downloads, installs or restarts itself.
+
+Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
+---
+ apps/desktop/src/main.ts               |  25 ++
+ apps/desktop/src/update-coordinator.ts |   1 +
+ apps/desktop/src/update-flatpak.ts     | 321 +++++++++++++++++++++++++
+ 3 files changed, 347 insertions(+)
+ create mode 100644 apps/desktop/src/update-flatpak.ts
+
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index ce77f700d3..9b61d2343b 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -52,6 +52,7 @@ import { openWelcomeWindow } from './welcome-window.ts'
+ import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
+ import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
+ import { DesktopUpdateJournal } from './update-journal.ts'
++import { FLATPAK, FlatpakUpdateMonitor } from './update-flatpak.ts'
+ import { DesktopUpdatePreparationError } from './update-error.ts'
+ import { DesktopUpdateSchedule, resolveDesktopUpdateScheduleConfig } from './update-schedule.ts'
+ import { desktopUpdateErrorSummary, presentDesktopUpdate } from './update-presentation.ts'
+@@ -779,6 +780,13 @@ async function main(): Promise<void> {
+   }
+ 
+   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
++  const publishFlatpakUpdate = (): void => {
++    for (const window of BrowserWindow.getAllWindows()) {
++      window.webContents.send(DESKTOP_IPC.updatesPresentation, updatePresentation({ phase: 'available' }))
++    }
++  }
++  const flatpakUpdates = FLATPAK ? new FlatpakUpdateMonitor(publishFlatpakUpdate) : undefined
++  flatpakUpdates?.start()
+ 
+   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
+     void track('desktop_upgrade_click', {})
+@@ -943,6 +951,7 @@ async function main(): Promise<void> {
+   })
+   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
+     assertProductSender(event)
++    if (flatpakUpdates !== undefined) return updatePresentation({ phase: flatpakUpdates.available ? 'available' : 'idle' })
+     return updatePresentation(updates.state)
+   })
+   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
+@@ -1010,8 +1019,23 @@ async function main(): Promise<void> {
+ 
+   let promptOperation: Promise<void> | undefined
+   let policyAuthenticationQueued = false
++  const showFlatpakUpdatePrompt = async (): Promise<void> => {
++    const available = flatpakUpdates?.available === true
++    const options = { type: 'info' as const, title: 'Check for Updates',
++      message: available ? 'A new version is available' : 'You are up to date',
++      detail: available
++        ? 'Update with your software center, or run:\n\nflatpak update com.deepseek.harness\n\nThen restart the app.'
++        : `Current version: ${app.getVersion()}`,
++      buttons: ['OK'], cancelId: 0 }
++    try { await ordinaryMessageBox(options) } catch (error: unknown) {
++      console.error(error)
++      try { await dialog.showMessageBox(options) }
++      catch (nativeError) { console.error(nativeError) }
++    }
++  }
+   /** Present check results only while their captured channel revision remains current. */
+   const openUpdatePrompt = (manual = false): Promise<void> => {
++    if (flatpakUpdates !== undefined) return showFlatpakUpdatePrompt()
+     if (channelState?.error !== undefined) {
+       return showConfigurationError()
+     }
+@@ -1158,6 +1182,7 @@ async function main(): Promise<void> {
+   app.on('will-quit', () => {
+     updateSchedule.dispose()
+     powerMonitor.off('resume', automaticCheck)
++    flatpakUpdates?.close()
+     updates.dispose()
+   })
+ 
+diff --git a/apps/desktop/src/update-coordinator.ts b/apps/desktop/src/update-coordinator.ts
+index 475a560667..8ed6aa18ea 100644
+--- a/apps/desktop/src/update-coordinator.ts
++++ b/apps/desktop/src/update-coordinator.ts
+@@ -266,6 +266,7 @@ export class DesktopUpdateCoordinator {
+   }
+ 
+   private async doCheck(): Promise<DesktopUpdateState> {
++    if (existsSync('/.flatpak-info')) return this.setState({ phase: 'idle' })
+     const generation = this.generation
+     try {
+       this.assertLive()
+diff --git a/apps/desktop/src/update-flatpak.ts b/apps/desktop/src/update-flatpak.ts
+new file mode 100644
+index 0000000000..72677e5847
+--- /dev/null
++++ b/apps/desktop/src/update-flatpak.ts
+@@ -0,0 +1,321 @@
++/** Flatpak portal update announcements; installing the update stays the host's job. */
++
++import { existsSync } from 'node:fs'
++import { createConnection, type Socket } from 'node:net'
++
++export const FLATPAK = existsSync('/.flatpak-info')
++
++const BUS = 'org.freedesktop.DBus'
++const BUS_PATH = '/org/freedesktop/DBus'
++const PORTAL = 'org.freedesktop.portal.Flatpak'
++const PORTAL_PATH = '/org/freedesktop/portal/Flatpak'
++const UPDATE_INTERFACE = 'org.freedesktop.portal.Flatpak.UpdateMonitor'
++
++const METHOD_CALL = 1
++const METHOD_RETURN = 2
++const ERROR = 3
++const SIGNAL = 4
++
++const REPLY_TIMEOUT_MS = 5_000
++
++type Field = { code: number; type: 's' | 'o' | 'g' | 'u'; value: string | number }
++
++interface Incoming {
++  type: number
++  replySerial?: number
++  path?: string
++  member?: string
++  body: Buffer
++}
++
++class Writer {
++  private buffer = Buffer.alloc(512)
++  private size = 0
++
++  get length(): number { return this.size }
++
++  byte(value: number): void {
++    this.reserve(1)
++    this.buffer[this.size++] = value
++  }
++
++  u32(value: number): void {
++    this.reserve(4)
++    this.buffer.writeUInt32LE(value, this.size)
++    this.size += 4
++  }
++
++  bytes(value: Buffer): void {
++    this.reserve(value.length)
++    value.copy(this.buffer, this.size)
++    this.size += value.length
++  }
++
++  string(value: string): void {
++    const raw = Buffer.from(value, 'utf8')
++    this.u32(raw.length)
++    this.bytes(raw)
++    this.byte(0)
++  }
++
++  signature(value: string): void {
++    const raw = Buffer.from(value, 'utf8')
++    this.byte(raw.length)
++    this.bytes(raw)
++    this.byte(0)
++  }
++
++  align(size: number): void {
++    while (this.size % size !== 0) this.byte(0)
++  }
++
++  toBuffer(): Buffer { return Buffer.from(this.buffer.subarray(0, this.size)) }
++
++  private reserve(size: number): void {
++    if (this.size + size <= this.buffer.length) return
++    const next = Buffer.alloc(Math.max(this.buffer.length * 2, this.size + size))
++    this.buffer.copy(next, 0, 0, this.size)
++    this.buffer = next
++  }
++}
++
++function aligned(offset: number, size: number): number {
++  return offset + ((size - (offset % size)) % size)
++}
++
++function stringBody(value: string): Buffer {
++  const writer = new Writer()
++  writer.string(value)
++  return writer.toBuffer()
++}
++
++function encode(type: number, serial: number, fields: readonly Field[], body: Buffer): Buffer {
++  const writer = new Writer()
++  writer.byte(0x6c)
++  writer.byte(type)
++  writer.byte(0)
++  writer.byte(1)
++  writer.u32(body.length)
++  writer.u32(serial)
++  writer.u32(0)
++  writer.align(8)
++  const start = writer.length
++  let fieldsLength = 0
++  const ordered = [...fields].sort((left, right) => left.code - right.code)
++  for (const [index, field] of ordered.entries()) {
++    if (index > 0) writer.align(8)
++    writer.byte(field.code)
++    writer.signature(field.type === 'u' ? 'u' : field.type === 'g' ? 'g' : field.type)
++    if (field.type === 'u') {
++      writer.align(4)
++      writer.u32(field.value as number)
++    } else if (field.type === 'g') {
++      writer.signature(field.value as string)
++    } else {
++      writer.align(4)
++      writer.string(field.value as string)
++    }
++    fieldsLength = writer.length - start
++  }
++  writer.align(8)
++  writer.bytes(body)
++  const message = writer.toBuffer()
++  message.writeUInt32LE(fieldsLength, 12)
++  return message
++}
++
++function decode(inbox: Buffer): { messages: Incoming[]; consumed: number } {
++  const messages: Incoming[] = []
++  let cursor = 0
++  while (inbox.length - cursor >= 16) {
++    // Alignment is relative to the start of each message; messages themselves are not padded.
++    const start = cursor
++    const fieldsLength = inbox.readUInt32LE(start + 12)
++    const body = start + aligned(16 + fieldsLength, 8)
++    const end = body + inbox.readUInt32LE(start + 4)
++    if (inbox.length < end) break
++    const message: Incoming = { type: inbox.readUInt8(start + 1), body: Buffer.alloc(0) }
++    try {
++      let field = start + 16
++      const fieldsEnd = field + fieldsLength
++      while (field < fieldsEnd) {
++        field = start + aligned(field - start, 8)
++        const code = inbox.readUInt8(field)
++        const length = inbox.readUInt8(field + 1)
++        field += 2
++        const signature = inbox.toString('utf8', field, field + length)
++        field += length + 1
++        if (signature === 'u') {
++          field = start + aligned(field - start, 4)
++          const value = inbox.readUInt32LE(field)
++          field += 4
++          if (code === 5) message.replySerial = value
++        } else if (signature === 's' || signature === 'o') {
++          field = start + aligned(field - start, 4)
++          const size = inbox.readUInt32LE(field)
++          const value = inbox.toString('utf8', field + 4, field + 4 + size)
++          field += 4 + size + 1
++          if (code === 1) message.path = value
++          if (code === 3) message.member = value
++        } else if (signature === 'g') {
++          field += inbox.readUInt8(field) + 2
++        } else {
++          throw new Error(`unsupported header field ${signature}`)
++        }
++      }
++      message.body = inbox.subarray(body, end)
++    } catch (error) {
++      console.error('desktop update: unreadable flatpak portal message', error)
++    }
++    messages.push(message)
++    cursor = end
++  }
++  return { messages, consumed: cursor }
++}
++
++function sessionAddress(): string | undefined {
++  const runtime = process.env.XDG_RUNTIME_DIR
++  const raw = process.env.DBUS_SESSION_BUS_ADDRESS
++  if (raw === undefined) return runtime === undefined ? undefined : `${runtime}/bus`
++  for (const entry of raw.split(';')) {
++    const [prefix = '', ...pairs] = entry.split(',')
++    const [transport, ...first] = prefix.split(':')
++    if (transport !== 'unix') continue
++    const options = [first.join(':'), ...pairs]
++    for (const option of options) {
++      const [name, ...rest] = option.split('=')
++      const value = rest.join('=')
++      if (name === 'path') return value
++      if (name === 'abstract') return `\0${value}`
++      if (name === 'runtime' && runtime !== undefined) return `${runtime}/bus`
++    }
++  }
++  return undefined
++}
++
++export class FlatpakUpdateMonitor {
++  private socket: Socket | undefined
++  private serial = 1
++  private helloSerial = 0
++  private createSerial = 0
++  private monitorPath: string | undefined
++  private announced = false
++  private closed = false
++  private authenticating = true
++  private auth = ''
++  private inbox = Buffer.alloc(0)
++  private timer: ReturnType<typeof setTimeout> | undefined
++
++  constructor(private readonly onUpdate: () => void = () => {}) {}
++
++  get available(): boolean { return this.announced }
++
++  start(): void {
++    const path = sessionAddress()
++    if (path === undefined) {
++      console.error('desktop update: no session bus address')
++      return
++    }
++    const socket = createConnection({ path })
++    this.socket = socket
++    socket.on('error', (error: unknown) => { console.error('desktop update: flatpak portal unavailable', error) })
++    socket.on('close', () => { this.stop() })
++    socket.on('connect', () => { socket.write(Buffer.from([0])); socket.write(this.authLine()) })
++    socket.on('data', (chunk: Buffer) => { this.receive(chunk) })
++    this.timer = setTimeout(() => {
++      if (this.monitorPath !== undefined) return
++      console.error('desktop update: flatpak portal did not answer')
++      this.close()
++    }, REPLY_TIMEOUT_MS)
++  }
++
++  close(): void {
++    if (this.closed) return
++    if (this.monitorPath !== undefined) this.call(this.monitorPath, UPDATE_INTERFACE, 'Close')
++    this.stop()
++  }
++
++  private authLine(): string {
++    const uid = Buffer.from(String(process.getuid?.() ?? 0), 'utf8').toString('hex')
++    return `AUTH EXTERNAL ${uid}\r\n`
++  }
++
++  private stop(): void {
++    this.closed = true
++    if (this.timer !== undefined) clearTimeout(this.timer)
++    this.timer = undefined
++    this.socket?.end()
++    this.socket = undefined
++  }
++
++  private receive(chunk: Buffer): void {
++    if (this.authenticating) {
++      this.auth += chunk.toString('latin1')
++      const end = this.auth.indexOf('\r\n')
++      if (end < 0) return
++      const line = this.auth.slice(0, end)
++      const rest = this.auth.slice(end + 2)
++      this.auth = ''
++      if (line.startsWith('REJECTED')) {
++        console.error('desktop update: session bus rejected authentication')
++        this.close()
++        return
++      }
++      if (!line.startsWith('OK ')) {
++        this.auth = rest
++        return
++      }
++      this.authenticating = false
++      this.socket?.write('BEGIN\r\n')
++      this.helloSerial = this.call(BUS_PATH, BUS, 'Hello', BUS)
++      if (rest.length === 0) return
++      chunk = Buffer.from(rest, 'latin1')
++    }
++    this.inbox = Buffer.concat([this.inbox, chunk])
++    const { messages, consumed } = decode(this.inbox)
++    this.inbox = this.inbox.subarray(consumed)
++    for (const message of messages) this.handle(message)
++  }
++
++  private handle(message: Incoming): void {
++    if (message.type === ERROR) {
++      if (message.replySerial !== this.createSerial) return
++      console.error('desktop update: flatpak portal rejected the update monitor')
++      this.close()
++      return
++    }
++    if (message.type === METHOD_RETURN) {
++      if (message.replySerial === this.helloSerial) this.create()
++      else if (message.replySerial === this.createSerial) this.watch(message.body)
++      return
++    }
++    if (message.type !== SIGNAL || message.member !== 'UpdateAvailable') return
++    if (message.path !== this.monitorPath || this.announced) return
++    this.announced = true
++    this.onUpdate()
++  }
++
++  private create(): void {
++    this.createSerial = this.call(PORTAL_PATH, PORTAL, 'CreateUpdateMonitor', PORTAL, 'a{sv}', Buffer.alloc(8))
++  }
++
++  private watch(body: Buffer): void {
++    const size = body.readUInt32LE(0)
++    this.monitorPath = body.toString('utf8', 4, 4 + size)
++    console.log('desktop update: watching flatpak updates', this.monitorPath)
++    if (this.timer !== undefined) clearTimeout(this.timer)
++    this.timer = undefined
++    const rule = `type='signal',interface='${UPDATE_INTERFACE}',member='UpdateAvailable',path='${this.monitorPath}'`
++    this.call(BUS_PATH, BUS, 'AddMatch', BUS, 's', stringBody(rule))
++  }
++
++  private call(path: string, iface: string, member: string, destination?: string, signature?: string, body?: Buffer): number {
++    const serial = this.serial++
++    const fields: Field[] = [{ code: 1, type: 'o', value: path }, { code: 2, type: 's', value: iface },
++      { code: 3, type: 's', value: member }]
++    if (destination !== undefined) fields.push({ code: 6, type: 's', value: destination })
++    if (signature !== undefined) fields.push({ code: 8, type: 'g', value: signature })
++    this.socket?.write(encode(METHOD_CALL, serial, fields, body ?? Buffer.alloc(0)))
++    return serial
++  }
++}
+-- 
+2.53.0
+
+
+From 33a72f3d4d22ab5d872ea3b29e7a3576c3e6610a Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: CodeBuddy:Auto
 ---
- .../desktop-auto-update-environment.d.mts     |  2 +-
- .../desktop-auto-update-environment.mjs       |  2 +-
+ .../src/desktop-auto-update-environment.d.mts |  2 +-
+ .../src/desktop-auto-update-environment.mjs   |  2 +-
+ .../src/desktop-publish-targets.ts            |  2 +-
+ .../src/desktop-release-store.ts              |  2 +-
  .../desktop/scripts/desktop-build-paths.d.mts |  2 +-
  apps/desktop/scripts/desktop-build-paths.mjs  |  3 ++-
  .../scripts/desktop-package-environment.d.mts |  4 ++--
  .../scripts/desktop-package-environment.mjs   |  2 +-
- .../scripts/desktop-publish-targets.ts        |  2 +-
- apps/desktop/scripts/desktop-release-store.ts |  2 +-
  .../scripts/desktop-toolchain-preflight.ts    |  4 ++--
  apps/desktop/scripts/desktop-upload-plan.ts   |  1 +
  .../scripts/electron-builder-config.mjs       |  3 +++
@@ -352,10 +750,10 @@ Assisted-by: CodeBuddy:Auto
  .../desktop/scripts/smoke-packaged-runtime.ts |  9 ++++++---
  15 files changed, 43 insertions(+), 21 deletions(-)
 
-diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 index c58df5a048..f85721d22a 100644
---- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
-+++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+--- a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
++++ b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 @@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
  export type DesktopAutoUpdateEnvironment = 'test' | 'production'
  
@@ -365,10 +763,10 @@ index c58df5a048..f85721d22a 100644
  
  /**
   * Name the fixed installer object shared by uploading and cache refresh.
-diff --git a/apps/desktop/scripts/desktop-auto-update-environment.mjs b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 index 24aaa0ea2c..79e328cfb7 100644
---- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
-+++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+--- a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
++++ b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 @@ -33,7 +33,7 @@ const UPDATE_ENVIRONMENTS = {
    },
  }
@@ -378,8 +776,34 @@ index 24aaa0ea2c..79e328cfb7 100644
  
  /**
   * Name the fixed installer object shared by uploading and cache refresh.
+diff --git a/apps/desktop-publisher/src/desktop-publish-targets.ts b/apps/desktop-publisher/src/desktop-publish-targets.ts
+index 3270b99b25..2e8a271e64 100644
+--- a/apps/desktop-publisher/src/desktop-publish-targets.ts
++++ b/apps/desktop-publisher/src/desktop-publish-targets.ts
+@@ -8,7 +8,7 @@ export const desktopPackageWorkflows = {
+   'win-x64': '.github/workflows/windows-package.yml',
+ } as const
+ 
+-const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64'])
++const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
+ 
+ /** Machine labels are unique; a scalar target is shorthand for a one-element target list. */
+ export const desktopPublishRunnersSchema = z.record(z.string(), z.object({
+diff --git a/apps/desktop-publisher/src/desktop-release-store.ts b/apps/desktop-publisher/src/desktop-release-store.ts
+index ae7915443c..eef2751004 100644
+--- a/apps/desktop-publisher/src/desktop-release-store.ts
++++ b/apps/desktop-publisher/src/desktop-release-store.ts
+@@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({
+   channel: z.enum(['nightly', 'stable']),
+   runnerName: z.string().min(1),
+   // Storage accepts every Desktop target; CI routing separately limits currently provisioned platforms.
+-  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64']),
++  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64']),
+   preset: z.enum(['test', 'production']),
+   productVersion: z.string().min(1),
+   version: z.string().min(1),
 diff --git a/apps/desktop/scripts/desktop-build-paths.d.mts b/apps/desktop/scripts/desktop-build-paths.d.mts
-index 910f3032ee..3367ce3a2e 100644
+index aaf7159d44..de5bedae53 100644
 --- a/apps/desktop/scripts/desktop-build-paths.d.mts
 +++ b/apps/desktop/scripts/desktop-build-paths.d.mts
 @@ -46,7 +46,7 @@ export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget, environ
@@ -434,7 +858,7 @@ index ec9da721f1..76c07e5e48 100644
    options?: { unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean },
  ): void
 diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
-index e01887a149..84d14d090a 100644
+index 274722681e..62b6aa8cc8 100644
 --- a/apps/desktop/scripts/desktop-package-environment.mjs
 +++ b/apps/desktop/scripts/desktop-package-environment.mjs
 @@ -58,7 +58,7 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
@@ -446,37 +870,11 @@ index e01887a149..84d14d090a 100644
    if (preset !== undefined) {
      if (preset !== 'test' && preset !== 'production') throw new Error('desktop package: preset must be test or production')
      const root = environment.DSH_PACKAGING_CONFIG_DIR
-diff --git a/apps/desktop/scripts/desktop-publish-targets.ts b/apps/desktop/scripts/desktop-publish-targets.ts
-index 3270b99b25..2e8a271e64 100644
---- a/apps/desktop/scripts/desktop-publish-targets.ts
-+++ b/apps/desktop/scripts/desktop-publish-targets.ts
-@@ -8,7 +8,7 @@ export const desktopPackageWorkflows = {
-   'win-x64': '.github/workflows/windows-package.yml',
- } as const
- 
--const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64'])
-+const targetSchema = z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
- 
- /** Machine labels are unique; a scalar target is shorthand for a one-element target list. */
- export const desktopPublishRunnersSchema = z.record(z.string(), z.object({
-diff --git a/apps/desktop/scripts/desktop-release-store.ts b/apps/desktop/scripts/desktop-release-store.ts
-index eb9d5457ff..377986091a 100644
---- a/apps/desktop/scripts/desktop-release-store.ts
-+++ b/apps/desktop/scripts/desktop-release-store.ts
-@@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({
-   channel: z.enum(['nightly', 'stable']),
-   runnerName: z.string().min(1),
-   // Storage accepts every Desktop target; CI routing separately limits currently provisioned platforms.
--  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64']),
-+  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64']),
-   preset: z.enum(['test', 'production']),
-   productVersion: z.string().min(1),
-   version: z.string().min(1),
 diff --git a/apps/desktop/scripts/desktop-toolchain-preflight.ts b/apps/desktop/scripts/desktop-toolchain-preflight.ts
-index ff855cfd09..08c8dc1fca 100644
+index da0f06a8ec..176f91982a 100644
 --- a/apps/desktop/scripts/desktop-toolchain-preflight.ts
 +++ b/apps/desktop/scripts/desktop-toolchain-preflight.ts
-@@ -75,7 +75,7 @@ async function probeWindowsInstallerToolchain(environment: NodeJS.ProcessEnv): P
+@@ -85,7 +85,7 @@ async function probeWindowsInstallerToolchain(environment: NodeJS.ProcessEnv): P
   * @returns Every probe that failed, empty when the host can run the packaging sequence.
   */
  export async function probeDesktopToolchain(
@@ -485,7 +883,7 @@ index ff855cfd09..08c8dc1fca 100644
    environment: NodeJS.ProcessEnv = process.env,
  ): Promise<readonly DesktopToolchainProbeFailure[]> {
    const failures: DesktopToolchainProbeFailure[] = []
-@@ -92,7 +92,7 @@ export async function probeDesktopToolchain(
+@@ -102,7 +102,7 @@ export async function probeDesktopToolchain(
   * @returns Resolves when every probe passes.
   */
  export async function requireDesktopToolchain(
@@ -495,10 +893,10 @@ index ff855cfd09..08c8dc1fca 100644
  ): Promise<void> {
    const failures = await probeDesktopToolchain(platform, environment)
 diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
-index 39ff954bf5..b1805f8e27 100644
+index 2e57bdb4c2..15a66a3952 100644
 --- a/apps/desktop/scripts/desktop-upload-plan.ts
 +++ b/apps/desktop/scripts/desktop-upload-plan.ts
-@@ -18,6 +18,7 @@ import { validateDesktopBuildVersion } from './desktop-build-version.mjs'
+@@ -21,6 +21,7 @@ export type { DesktopUploadArtifact, DesktopUploadPlan } from '@deepseek-ai/dsh-
  const APP_ROOT = resolve(import.meta.dirname, '..')
  const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
  const TARGETS = {
@@ -507,7 +905,7 @@ index 39ff954bf5..b1805f8e27 100644
    'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
    'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index 2548e17d8b..fc8ebe1f3c 100644
+index d7c52936ab..7d8edfc0bb 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
 @@ -116,6 +116,7 @@ export function createElectronBuilderConfig(
@@ -528,7 +926,7 @@ index 2548e17d8b..fc8ebe1f3c 100644
      },
      nsis: {
 diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
-index 2b97565ec6..3de8557ea0 100644
+index f3e8c07037..7241ea2cef 100644
 --- a/apps/desktop/scripts/package-target.ts
 +++ b/apps/desktop/scripts/package-target.ts
 @@ -48,14 +48,14 @@ const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
