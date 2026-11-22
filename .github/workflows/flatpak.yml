@@ -31,5 +31,5 @@ jobs:
       oci-repository: ${{ github.repository }}
       remote-name: dsh
       image-deltas: true
-      delta-back: 1
+      delta-back: 3
       dry-run: ${{ github.event_name != 'push' }}
