@@ -298,7 +298,7 @@ index ea244526d5..f3e8c07037 100644
 2.53.0
 
 
-From d09c575d2767e4cb11ee74a3b2e3d74f6ef27f1e Mon Sep 17 00:00:00 2001
+From 12b0e58480e393d31310b96627f826ed11b4e318 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Fri, 20 Nov 2026 04:40:45 +0800
 Subject: [PATCH 7/8] feat(desktop): check Flatpak updates through the Flatpak
@@ -311,58 +311,43 @@ flatpak update: the sandbox never downloads, installs or restarts itself.
 
 Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
 ---
- apps/desktop/src/main.ts               |  25 ++
- apps/desktop/src/update-coordinator.ts |   1 +
- apps/desktop/src/update-flatpak.ts     | 321 +++++++++++++++++++++++++
- 3 files changed, 347 insertions(+)
+ apps/desktop/src/main.ts               |  17 ++
+ apps/desktop/src/update-coordinator.ts |  17 ++
+ apps/desktop/src/update-flatpak.ts     | 335 +++++++++++++++++++++++++
+ 3 files changed, 369 insertions(+)
  create mode 100644 apps/desktop/src/update-flatpak.ts
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index ce77f700d3..9b61d2343b 100644
+index ce77f700d3..6ffd0a08f3 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
 @@ -52,6 +52,7 @@ import { openWelcomeWindow } from './welcome-window.ts'
  import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
  import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
  import { DesktopUpdateJournal } from './update-journal.ts'
-+import { FLATPAK, FlatpakUpdateMonitor } from './update-flatpak.ts'
++import { FLATPAK, FlatpakUpdateMonitor, flatpakUpdatePrompt } from './update-flatpak.ts'
  import { DesktopUpdatePreparationError } from './update-error.ts'
  import { DesktopUpdateSchedule, resolveDesktopUpdateScheduleConfig } from './update-schedule.ts'
  import { desktopUpdateErrorSummary, presentDesktopUpdate } from './update-presentation.ts'
-@@ -779,6 +780,13 @@ async function main(): Promise<void> {
-   }
+@@ -769,6 +770,12 @@ async function main(): Promise<void> {
+   )
  
-   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
-+  const publishFlatpakUpdate = (): void => {
-+    for (const window of BrowserWindow.getAllWindows()) {
-+      window.webContents.send(DESKTOP_IPC.updatesPresentation, updatePresentation({ phase: 'available' }))
-+    }
-+  }
+   if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
++  const publishFlatpakUpdate = (): void => { updates.refreshPortalState() }
 +  const flatpakUpdates = FLATPAK ? new FlatpakUpdateMonitor(publishFlatpakUpdate) : undefined
-+  flatpakUpdates?.start()
- 
-   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
-     void track('desktop_upgrade_click', {})
-@@ -943,6 +951,7 @@ async function main(): Promise<void> {
-   })
-   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
-     assertProductSender(event)
-+    if (flatpakUpdates !== undefined) return updatePresentation({ phase: flatpakUpdates.available ? 'available' : 'idle' })
-     return updatePresentation(updates.state)
-   })
-   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
-@@ -1010,8 +1019,23 @@ async function main(): Promise<void> {
++  if (flatpakUpdates !== undefined) {
++    updates.usePortalAvailability(() => flatpakUpdates.available)
++    flatpakUpdates.start()
++  }
+   const publishChannel = (state: DesktopChannelState): DesktopChannelState => {
+     channelState = state
+     for (const window of BrowserWindow.getAllWindows()) {
+@@ -1010,8 +1017,17 @@ async function main(): Promise<void> {
  
    let promptOperation: Promise<void> | undefined
    let policyAuthenticationQueued = false
 +  const showFlatpakUpdatePrompt = async (): Promise<void> => {
-+    const available = flatpakUpdates?.available === true
-+    const options = { type: 'info' as const, title: 'Check for Updates',
-+      message: available ? 'A new version is available' : 'You are up to date',
-+      detail: available
-+        ? 'Update with your software center, or run:\n\nflatpak update com.deepseek.harness\n\nThen restart the app.'
-+        : `Current version: ${app.getVersion()}`,
-+      buttons: ['OK'], cancelId: 0 }
++    const options = flatpakUpdatePrompt(updates.state.phase === 'available', app.getVersion())
 +    try { await ordinaryMessageBox(options) } catch (error: unknown) {
 +      console.error(error)
 +      try { await dialog.showMessageBox(options) }
@@ -371,11 +356,11 @@ index ce77f700d3..9b61d2343b 100644
 +  }
    /** Present check results only while their captured channel revision remains current. */
    const openUpdatePrompt = (manual = false): Promise<void> => {
-+    if (flatpakUpdates !== undefined) return showFlatpakUpdatePrompt()
++    if (FLATPAK) return showFlatpakUpdatePrompt()
      if (channelState?.error !== undefined) {
        return showConfigurationError()
      }
-@@ -1158,6 +1182,7 @@ async function main(): Promise<void> {
+@@ -1158,6 +1174,7 @@ async function main(): Promise<void> {
    app.on('will-quit', () => {
      updateSchedule.dispose()
      powerMonitor.off('resume', automaticCheck)
@@ -384,27 +369,65 @@ index ce77f700d3..9b61d2343b 100644
    })
  
 diff --git a/apps/desktop/src/update-coordinator.ts b/apps/desktop/src/update-coordinator.ts
-index 475a560667..8ed6aa18ea 100644
+index 475a560667..8d135d40a0 100644
 --- a/apps/desktop/src/update-coordinator.ts
 +++ b/apps/desktop/src/update-coordinator.ts
-@@ -266,6 +266,7 @@ export class DesktopUpdateCoordinator {
+@@ -28,6 +28,7 @@ export class DesktopUpdateCoordinator {
+   private checkOperation: Promise<DesktopUpdateState> | undefined
+   private downloadOperation: Promise<DesktopUpdateState> | undefined
+   private installOperation: Promise<DesktopUpdateState> | undefined
++  private portalAvailable: (() => boolean) | undefined
+ 
+   private readonly onProgress = (progress: ProgressInfo): void => {
+     if (this.downloadGeneration !== this.generation || this.downloadOperation === undefined || this.downloaded) return
+@@ -87,6 +88,13 @@ export class DesktopUpdateCoordinator {
+   /** Latest observable state; complete download identity remains main-process-owned. */
+   get state(): DesktopUpdateState { return this.current }
+ 
++  usePortalAvailability(available: () => boolean): void {
++    this.portalAvailable = available
++    this.setState(this.current)
++  }
++
++  refreshPortalState(): DesktopUpdateState { return this.setState(this.current) }
++
+   /** Reason ordinary updates are suspended, independently of the last operation result. */
+   get configurationFailure(): 'startup' | 'cleanup' | undefined { return this.configurationError }
+ 
+@@ -244,6 +252,14 @@ export class DesktopUpdateCoordinator {
+   }
+ 
+   private setState(state: DesktopUpdateState): DesktopUpdateState {
++    if (this.portalAvailable !== undefined) {
++      const published: DesktopUpdateState = { phase: this.portalAvailable() ? 'available' : 'idle' }
++      if (!this.disposed) {
++        this.current = published
++        this.publish(published)
++      }
++      return published
++    }
+     if (!this.disposed) {
+       this.current = state
+       this.publish(state)
+@@ -266,6 +282,7 @@ export class DesktopUpdateCoordinator {
    }
  
    private async doCheck(): Promise<DesktopUpdateState> {
-+    if (existsSync('/.flatpak-info')) return this.setState({ phase: 'idle' })
++    if (this.portalAvailable !== undefined) return this.refreshPortalState()
      const generation = this.generation
      try {
        this.assertLive()
 diff --git a/apps/desktop/src/update-flatpak.ts b/apps/desktop/src/update-flatpak.ts
 new file mode 100644
-index 0000000000..72677e5847
+index 0000000000..53b1099226
 --- /dev/null
 +++ b/apps/desktop/src/update-flatpak.ts
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,335 @@
 +/** Flatpak portal update announcements; installing the update stays the host's job. */
 +
 +import { existsSync } from 'node:fs'
 +import { createConnection, type Socket } from 'node:net'
++import type { UpdateDialogOptions } from './update-dialog.ts'
 +
 +export const FLATPAK = existsSync('/.flatpak-info')
 +
@@ -722,11 +745,24 @@ index 0000000000..72677e5847
 +    return serial
 +  }
 +}
++
++export function flatpakUpdatePrompt(available: boolean, currentVersion: string): UpdateDialogOptions {
++  return {
++    type: 'info',
++    title: 'Check for Updates',
++    message: available ? 'A new version is available' : 'You are up to date',
++    detail: available
++      ? 'Update with your software center, or run:\n\nflatpak update com.deepseek.harness\n\nThen restart the app.'
++      : `Current version: ${currentVersion}`,
++    buttons: ['OK'],
++    cancelId: 0,
++  }
++}
 -- 
 2.53.0
 
 
-From 33a72f3d4d22ab5d872ea3b29e7a3576c3e6610a Mon Sep 17 00:00:00 2001
+From c3957c17566b9d58df85b48d2daedd03e3a0f4ea Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
