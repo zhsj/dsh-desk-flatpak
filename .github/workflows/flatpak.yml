@@ -15,7 +15,27 @@ permissions:
   contents: read
 
 jobs:
+  subject:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.subject.outputs.value }}
+    steps:
+      - id: subject
+        shell: bash
+        env:
+          SHA: ${{ github.sha }}
+          MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+        run: |
+          set -euo pipefail
+          title=$(printf '%s\n' "$MESSAGE" | head -n1 | tr -d '\r')
+          if [ -n "$title" ]; then
+            echo "value=${title} (${SHA:0:12})" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=Build (${SHA:0:12})" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: subject
     permissions:
       contents: read
       packages: write
@@ -33,3 +53,5 @@ jobs:
       image-deltas: true
       delta-back: 3
       dry-run: ${{ github.event_name != 'push' }}
+      builder-args: |
+        --subject=${{ needs.subject.outputs.value }}
