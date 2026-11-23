@@ -298,7 +298,7 @@ index ea244526d5..f3e8c07037 100644
 2.53.0
 
 
-From 7775aced869cc51baeb46a34e79e20ac4e1c4c13 Mon Sep 17 00:00:00 2001
+From e3d7b4b16d2e3b719d9d187a6e02f109f49ae366 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Fri, 20 Nov 2026 04:40:45 +0800
 Subject: [PATCH 7/8] feat(desktop): check Flatpak updates through the Flatpak
@@ -313,8 +313,8 @@ Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
 ---
  apps/desktop/src/main.ts               |  17 ++
  apps/desktop/src/update-coordinator.ts |  17 ++
- apps/desktop/src/update-flatpak.ts     | 405 +++++++++++++++++++++++++
- 3 files changed, 439 insertions(+)
+ apps/desktop/src/update-flatpak.ts     | 402 +++++++++++++++++++++++++
+ 3 files changed, 436 insertions(+)
  create mode 100644 apps/desktop/src/update-flatpak.ts
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
@@ -419,10 +419,10 @@ index 475a560667..8d135d40a0 100644
        this.assertLive()
 diff --git a/apps/desktop/src/update-flatpak.ts b/apps/desktop/src/update-flatpak.ts
 new file mode 100644
-index 0000000000..6848adc715
+index 0000000000..803413a24c
 --- /dev/null
 +++ b/apps/desktop/src/update-flatpak.ts
-@@ -0,0 +1,405 @@
+@@ -0,0 +1,402 @@
 +/** Flatpak portal update announcements; installing the update stays the host's job. */
 +
 +import { existsSync } from 'node:fs'
@@ -455,7 +455,6 @@ index 0000000000..6848adc715
 +}
 +
 +export interface FlatpakUpdateInfo {
-+  readonly running: string | undefined
 +  readonly local: string | undefined
 +  readonly remote: string | undefined
 +}
@@ -610,7 +609,6 @@ index 0000000000..6848adc715
 + * so aligning relative to the body is equivalent to aligning relative to the message.
 + */
 +function decodeUpdateInfo(body: Buffer): FlatpakUpdateInfo {
-+  let running: string | undefined
 +  let local: string | undefined
 +  let remote: string | undefined
 +  const end = 8 + body.readUInt32LE(0)
@@ -629,11 +627,10 @@ index 0000000000..6848adc715
 +    const valueLength = body.readUInt32LE(offset)
 +    const value = body.toString('utf8', offset + 4, offset + 4 + valueLength)
 +    offset += 4 + valueLength + 1
-+    if (key === 'running-commit') running = value
-+    else if (key === 'local-commit') local = value
++    if (key === 'local-commit') local = value
 +    else if (key === 'remote-commit') remote = value
 +  }
-+  return { running, local, remote }
++  return { local, remote }
 +}
 +
 +function sessionAddress(): string | undefined {
@@ -657,10 +654,12 @@ index 0000000000..6848adc715
 +}
 +
 +/**
-+ * Watches org.freedesktop.portal.Flatpak.UpdateMonitor. UpdateAvailable means the local
-+ * and remote commits changed relative to the running commit, not that an update exists,
-+ * so the payload decides. The portal polls every 30 minutes and its Update method really
-+ * installs the update, so never call it: the sandbox only reports.
++ * Watches org.freedesktop.portal.Flatpak.UpdateMonitor. UpdateAvailable fires when the
++ * commits it reports change, not when an update exists, so the payload decides. Only the
++ * local and remote commits are comparable: for an OCI install flatpak reports both as the
++ * alt-id, the image digest, while running-commit is the ostree commit id of the instance,
++ * so one build appears under two forms. The portal polls every 30 minutes and its Update
++ * method really installs the update, so never call it: the sandbox only reports.
 + */
 +export class FlatpakUpdateMonitor {
 +  private socket: Socket | undefined
@@ -679,7 +678,7 @@ index 0000000000..6848adc715
 +
 +  get available(): boolean {
 +    const info = this.info
-+    return info !== undefined && info.running !== undefined && info.remote !== undefined && info.running !== info.remote
++    return info !== undefined && info.local !== undefined && info.remote !== undefined && info.local !== info.remote
 +  }
 +
 +  get updateInfo(): FlatpakUpdateInfo | undefined { return this.info }
@@ -773,8 +772,7 @@ index 0000000000..6848adc715
 +      return
 +    }
 +    const previous = this.info
-+    if (previous !== undefined && previous.running === info.running &&
-+      previous.local === info.local && previous.remote === info.remote) return
++    if (previous !== undefined && previous.local === info.local && previous.remote === info.remote) return
 +    this.info = info
 +    this.onUpdate()
 +  }
@@ -812,7 +810,6 @@ index 0000000000..6848adc715
 +  const info = [`Current version: ${currentVersion}`]
 +  if (available) {
 +    info.push(
-+      `Running commit: ${update?.running ?? 'unknown'}`,
 +      `Installed commit: ${update?.local ?? 'unknown'}`,
 +      `Remote commit: ${update?.remote ?? 'unknown'}`,
 +    )
@@ -832,7 +829,7 @@ index 0000000000..6848adc715
 2.53.0
 
 
-From c9d9754f72392fc32b14b6c3aa291705c72ec782 Mon Sep 17 00:00:00 2001
+From f9830623994f9035cdc2c8dab6f22fd56663c9c9 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
 Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
