@@ -1,7 +1,7 @@
-From 206845cf64926ec59304e15672a6a57e28d8bcf6 Mon Sep 17 00:00:00 2001
+From d4b78d430f852a7f1eb2c5d07241bbc358f10b85 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:15 +0800
-Subject: [PATCH 1/8] fix(desktop): drop the linux libvips copies bundled with
+Subject: [PATCH 1/7] fix(desktop): drop the linux libvips copies bundled with
  sharp
 
 The Flatpak runtime provides libvips, so the copies sharp ships for Linux
@@ -13,7 +13,7 @@ Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
  1 file changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index a069888036..b20d491c7e 100644
+index be3c10816d..c0130b2935 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
 @@ -4,7 +4,7 @@ import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-dir
@@ -25,7 +25,7 @@ index a069888036..b20d491c7e 100644
  import { tmpdir } from 'node:os'
  import { delimiter, join, relative, resolve } from 'node:path'
  import { desktopNodeEnvironment } from '../src/node-environment.ts'
-@@ -155,6 +155,14 @@ async function main(): Promise<void> {
+@@ -156,6 +156,14 @@ async function main(): Promise<void> {
        name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
        dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
      }, undefined, 2)}\n`)
@@ -44,41 +44,10 @@ index a069888036..b20d491c7e 100644
 2.53.0
 
 
-From 2642ad3d0540496afddbbbbc288c8223b33137ed Mon Sep 17 00:00:00 2001
-From: Shengjing Zhu <i@zhsj.me>
-Date: Thu, 12 Nov 2026 02:56:56 +0800
-Subject: [PATCH 2/8] fix(office): treat ASAR-missing engine paths as absent
-
-Electron's ASAR filesystem returns null instead of undefined for a missing
-entry, so the installed-package probe reported absent native engines as
-installed and blocked the WASM fallback on Linux.
-
-Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
----
- packages/document/office-kit/src/locate.ts | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/packages/document/office-kit/src/locate.ts b/packages/document/office-kit/src/locate.ts
-index 827ecfe4e6..7af70359f8 100644
---- a/packages/document/office-kit/src/locate.ts
-+++ b/packages/document/office-kit/src/locate.ts
-@@ -61,7 +61,7 @@ export function createEnginePackageResolver(kitEntry: string | URL): EnginePacka
-     } catch (error) {
-       if (error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
-         const installed = (fromKit.resolve.paths(name) ?? []).some(directory =>
--          lstatSync(join(directory, name), { throwIfNoEntry: false }) !== undefined,
-+          Boolean(lstatSync(join(directory, name), { throwIfNoEntry: false })),
-         )
-         if (installed) throw new Error(`Installed LibreOfficeKit package is incomplete: ${name}. Reinstall the package.`, { cause: error })
-       }
--- 
-2.53.0
-
-
-From 52d453fe14cba5f505d05252c705861090aba25d Mon Sep 17 00:00:00 2001
+From 4b82e17a04aa2a121db54492728063c733444aab Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Thu, 1 Oct 2026 01:48:20 +0800
-Subject: [PATCH 3/8] fix(desktop): make the landlock sandbox work from the
+Subject: [PATCH 2/7] fix(desktop): make the landlock sandbox work from the
  packaged app
 
 The ASAR archive stays read-only and Electron rewrites ASAR paths only for
@@ -101,12 +70,12 @@ Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
  2 files changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index a777a0582e..0df6203051 100644
+index 3478a30167..dd4364377b 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -77,6 +77,7 @@ export function createElectronBuilderConfig(
-   let windowsCode = []
-   const unpack = ['**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
+@@ -80,6 +80,7 @@ export function createElectronBuilderConfig(
+   const receiverBase = `lib/native/${resolvedPlatform}-${resolvedArch}/frame-forwarding`
+   const unpack = [`${receiverBase}.json`, '**/*.{node,dylib,dll,so,exe}', '**/*.so.*', '**/spawn-helper', '**/@vscode/ripgrep-*/bin/rg',
      `**/node_modules/@deepseek-ai/libreoffice-kit-${resolvedPlatform}-${resolvedArch}/**/*`,
 +    '**/bin/landlock-run',
      // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
@@ -130,10 +99,10 @@ index af8dae004f..911290185f 100644
 2.53.0
 
 
-From dd8507e2aad77b137e596cfbd0b8468a8b3deeae Mon Sep 17 00:00:00 2001
+From 360979970060048c162c93bb06b2995ab90310a5 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sat, 10 Oct 2026 15:07:20 +0800
-Subject: [PATCH 4/8] feat(desktop): enable hidden titlebar with overlay for
+Subject: [PATCH 3/7] feat(desktop): enable hidden titlebar with overlay for
  Linux desktop
 
 Apply Windows-style titleBarStyle 'hidden' with titleBarOverlay
@@ -147,10 +116,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 291ed08476..47da260ed5 100644
+index c90a1101df..3d0c0d2309 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -268,7 +268,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -272,7 +272,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      minWidth: 520,
      minHeight: 600,
      show,
@@ -159,7 +128,7 @@ index 291ed08476..47da260ed5 100644
        backgroundColor: chromeFallbackFill(),
        titleBarStyle: 'hidden' as const,
        titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-@@ -299,7 +299,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+@@ -303,7 +303,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
      if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
      return { action: 'deny' }
    })
@@ -168,7 +137,7 @@ index 291ed08476..47da260ed5 100644
      // Fullscreen hides native window controls; overlays drop their caption clearance.
      const sendFullscreen = (): void => {
        if (!window.isDestroyed()) window.webContents.send(DESKTOP_IPC.windowFullscreen, window.isFullScreen())
-@@ -1274,7 +1274,7 @@ async function main(): Promise<void> {
+@@ -1338,7 +1338,7 @@ async function main(): Promise<void> {
      ...(process.platform === 'win32' ? { icon: nativeImage.createFromPath(trayIconPath) } : {}),
    })
  
@@ -194,10 +163,10 @@ index 5b9ed75661..ac92a33672 100644
 2.53.0
 
 
-From 74377f230b0545784e4faabd4fff2d4c76b823a1 Mon Sep 17 00:00:00 2001
+From 39de52147232bedc6aba121262a7054cae338f98 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Sun, 11 Oct 2026 03:40:19 +0800
-Subject: [PATCH 5/8] feat(desktop): enable system tray icon on Linux
+Subject: [PATCH 4/7] feat(desktop): enable system tray icon on Linux
 
 Extend the DesktopTray from Windows-only to all non-macOS platforms so
 the tray icon is always present on Linux as well.  Use icon.png for
@@ -211,10 +180,10 @@ Assisted-by: Trae:DeepSeek-V4-Pro
  1 file changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index 47da260ed5..ce77f700d3 100644
+index 3d0c0d2309..9a465d55ae 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -1249,15 +1249,16 @@ async function main(): Promise<void> {
+@@ -1313,15 +1313,16 @@ async function main(): Promise<void> {
      tray?.relabel()
    }
    refreshApplicationMenu()
@@ -238,10 +207,10 @@ index 47da260ed5..ce77f700d3 100644
 2.53.0
 
 
-From 724bd61cc0d1767e11d38715d349ba902edfc288 Mon Sep 17 00:00:00 2001
+From 85a4d083e4d0a47903b1df1315cdf010a4878324 Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 05:43:36 +0800
-Subject: [PATCH 6/8] fix(desktop): skip auto-update feed and mandatory policy
+Subject: [PATCH 5/7] fix(desktop): skip auto-update feed and mandatory policy
  for linux
 
 Linux ships unsigned with no auto-update feed. Automatically mark builds as
@@ -269,10 +238,10 @@ index d301ac4b31..274722681e 100644
    if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
    else resolveWindowsPackageSettings(environment)
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index 0df6203051..d7c52936ab 100644
+index dd4364377b..0722bc2ee0 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -66,7 +66,7 @@ export function createElectronBuilderConfig(
+@@ -68,7 +68,7 @@ export function createElectronBuilderConfig(
    if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
    const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
    const packagesWindows = resolvedPlatform === 'win32'
@@ -282,7 +251,7 @@ index 0df6203051..d7c52936ab 100644
    const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
    if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
 diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
-index ea244526d5..f3e8c07037 100644
+index b0a8e7fbc9..195721de78 100644
 --- a/apps/desktop/scripts/package-target.ts
 +++ b/apps/desktop/scripts/package-target.ts
 @@ -250,7 +250,7 @@ export function parseDesktopPackageInvocation(
@@ -298,10 +267,10 @@ index ea244526d5..f3e8c07037 100644
 2.53.0
 
 
-From e3d7b4b16d2e3b719d9d187a6e02f109f49ae366 Mon Sep 17 00:00:00 2001
+From 2615ba078ed2a4d0693d1be46a56f465c60ec9eb Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Fri, 20 Nov 2026 04:40:45 +0800
-Subject: [PATCH 7/8] feat(desktop): check Flatpak updates through the Flatpak
+Subject: [PATCH 6/7] feat(desktop): check Flatpak updates through the Flatpak
  portal
 
 Linux ships without an update feed, so the check prompt had nothing to
@@ -318,10 +287,10 @@ Assisted-by: CodeBuddy:DeepSeek-V4.1-Flash
  create mode 100644 apps/desktop/src/update-flatpak.ts
 
 diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
-index ce77f700d3..f04eeb0d21 100644
+index 9a465d55ae..6f2f02cf25 100644
 --- a/apps/desktop/src/main.ts
 +++ b/apps/desktop/src/main.ts
-@@ -52,6 +52,7 @@ import { openWelcomeWindow } from './welcome-window.ts'
+@@ -53,6 +53,7 @@ import { openWelcomeWindow } from './welcome-window.ts'
  import { WELCOME_IPC, needsWelcome, type WelcomeNotice } from './welcome-api.ts'
  import { connectDesktopWelcome, type DesktopWelcomeBackend } from './welcome-backend.ts'
  import { DesktopUpdateJournal } from './update-journal.ts'
@@ -329,7 +298,7 @@ index ce77f700d3..f04eeb0d21 100644
  import { DesktopUpdatePreparationError } from './update-error.ts'
  import { DesktopUpdateSchedule, resolveDesktopUpdateScheduleConfig } from './update-schedule.ts'
  import { desktopUpdateErrorSummary, presentDesktopUpdate } from './update-presentation.ts'
-@@ -769,6 +770,12 @@ async function main(): Promise<void> {
+@@ -800,6 +801,12 @@ async function main(): Promise<void> {
    )
  
    if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
@@ -342,7 +311,7 @@ index ce77f700d3..f04eeb0d21 100644
    const publishChannel = (state: DesktopChannelState): DesktopChannelState => {
      channelState = state
      for (const window of BrowserWindow.getAllWindows()) {
-@@ -1010,8 +1017,17 @@ async function main(): Promise<void> {
+@@ -1074,8 +1081,17 @@ async function main(): Promise<void> {
  
    let promptOperation: Promise<void> | undefined
    let policyAuthenticationQueued = false
@@ -360,7 +329,7 @@ index ce77f700d3..f04eeb0d21 100644
      if (channelState?.error !== undefined) {
        return showConfigurationError()
      }
-@@ -1158,6 +1174,7 @@ async function main(): Promise<void> {
+@@ -1222,6 +1238,7 @@ async function main(): Promise<void> {
    app.on('will-quit', () => {
      updateSchedule.dispose()
      powerMonitor.off('resume', automaticCheck)
@@ -369,10 +338,10 @@ index ce77f700d3..f04eeb0d21 100644
    })
  
 diff --git a/apps/desktop/src/update-coordinator.ts b/apps/desktop/src/update-coordinator.ts
-index 475a560667..8d135d40a0 100644
+index c29e4783bb..d3cbecea33 100644
 --- a/apps/desktop/src/update-coordinator.ts
 +++ b/apps/desktop/src/update-coordinator.ts
-@@ -28,6 +28,7 @@ export class DesktopUpdateCoordinator {
+@@ -30,6 +30,7 @@ export class DesktopUpdateCoordinator {
    private checkOperation: Promise<DesktopUpdateState> | undefined
    private downloadOperation: Promise<DesktopUpdateState> | undefined
    private installOperation: Promise<DesktopUpdateState> | undefined
@@ -380,7 +349,7 @@ index 475a560667..8d135d40a0 100644
  
    private readonly onProgress = (progress: ProgressInfo): void => {
      if (this.downloadGeneration !== this.generation || this.downloadOperation === undefined || this.downloaded) return
-@@ -87,6 +88,13 @@ export class DesktopUpdateCoordinator {
+@@ -106,6 +107,13 @@ export class DesktopUpdateCoordinator {
    /** Latest observable state; complete download identity remains main-process-owned. */
    get state(): DesktopUpdateState { return this.current }
  
@@ -394,7 +363,7 @@ index 475a560667..8d135d40a0 100644
    /** Reason ordinary updates are suspended, independently of the last operation result. */
    get configurationFailure(): 'startup' | 'cleanup' | undefined { return this.configurationError }
  
-@@ -244,6 +252,14 @@ export class DesktopUpdateCoordinator {
+@@ -266,6 +274,14 @@ export class DesktopUpdateCoordinator {
    }
  
    private setState(state: DesktopUpdateState): DesktopUpdateState {
@@ -409,7 +378,7 @@ index 475a560667..8d135d40a0 100644
      if (!this.disposed) {
        this.current = state
        this.publish(state)
-@@ -266,6 +282,7 @@ export class DesktopUpdateCoordinator {
+@@ -288,6 +304,7 @@ export class DesktopUpdateCoordinator {
    }
  
    private async doCheck(): Promise<DesktopUpdateState> {
@@ -829,10 +798,10 @@ index 0000000000..803413a24c
 2.53.0
 
 
-From f9830623994f9035cdc2c8dab6f22fd56663c9c9 Mon Sep 17 00:00:00 2001
+From 81289c57b822753b4a8e0f4c8e316bf2c8d4122c Mon Sep 17 00:00:00 2001
 From: Shengjing Zhu <i@zhsj.me>
 Date: Wed, 7 Oct 2026 04:17:33 +0800
-Subject: [PATCH 8/8] feat(desktop): add the linux-x64 packaging target
+Subject: [PATCH 7/7] feat(desktop): add the linux-x64 packaging target
 
 Assisted-by: CodeBuddy:Auto
 ---
@@ -854,7 +823,7 @@ Assisted-by: CodeBuddy:Auto
  15 files changed, 43 insertions(+), 21 deletions(-)
 
 diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
-index c58df5a048..f85721d22a 100644
+index 08bfde219a..8ba9dead7a 100644
 --- a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 +++ b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 @@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -867,7 +836,7 @@ index c58df5a048..f85721d22a 100644
  /**
   * Name the fixed installer object shared by uploading and cache refresh.
 diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
-index 24aaa0ea2c..79e328cfb7 100644
+index d7d2febf39..438cb2d750 100644
 --- a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 +++ b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 @@ -33,7 +33,7 @@ const UPDATE_ENVIRONMENTS = {
@@ -996,7 +965,7 @@ index da0f06a8ec..176f91982a 100644
  ): Promise<void> {
    const failures = await probeDesktopToolchain(platform, environment)
 diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
-index 2e57bdb4c2..15a66a3952 100644
+index 00e59206c2..2d7a39f100 100644
 --- a/apps/desktop/scripts/desktop-upload-plan.ts
 +++ b/apps/desktop/scripts/desktop-upload-plan.ts
 @@ -21,6 +21,7 @@ export type { DesktopUploadArtifact, DesktopUploadPlan } from '@deepseek-ai/dsh-
@@ -1008,10 +977,10 @@ index 2e57bdb4c2..15a66a3952 100644
    'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
    'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
 diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
-index d7c52936ab..7d8edfc0bb 100644
+index 0722bc2ee0..86b81f3af0 100644
 --- a/apps/desktop/scripts/electron-builder-config.mjs
 +++ b/apps/desktop/scripts/electron-builder-config.mjs
-@@ -116,6 +116,7 @@ export function createElectronBuilderConfig(
+@@ -119,6 +119,7 @@ export function createElectronBuilderConfig(
        ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
        ...buildVersion === productVersion ? {} : { version: buildVersion },
        ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
@@ -1019,7 +988,7 @@ index d7c52936ab..7d8edfc0bb 100644
      },
      productName: 'DeepSeek Harness',
      // The default copyright uses author.name; this line names the product instead.
-@@ -257,6 +258,8 @@ export function createElectronBuilderConfig(
+@@ -261,6 +262,8 @@ export function createElectronBuilderConfig(
      },
      linux: {
        category: 'Development',
@@ -1029,7 +998,7 @@ index d7c52936ab..7d8edfc0bb 100644
      },
      nsis: {
 diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
-index f3e8c07037..7241ea2cef 100644
+index 195721de78..242d6b11ba 100644
 --- a/apps/desktop/scripts/package-target.ts
 +++ b/apps/desktop/scripts/package-target.ts
 @@ -48,14 +48,14 @@ const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
@@ -1087,10 +1056,10 @@ index f3e8c07037..7241ea2cef 100644
      success = true
    } catch (error) {
 diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
-index b20d491c7e..c7923ffd0f 100644
+index c0130b2935..313f8cbf71 100644
 --- a/apps/desktop/scripts/prepare-dsh.ts
 +++ b/apps/desktop/scripts/prepare-dsh.ts
-@@ -44,7 +44,8 @@ const STORE_ROOT = BUILD_PATHS.pnpmStore
+@@ -45,7 +45,8 @@ const STORE_ROOT = BUILD_PATHS.pnpmStore
  const RUNTIME_ROOT = BUILD_PATHS.runtime
  const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
  const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
